@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Book QR generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root { --ink: #cc3d78; --text: #1d2026; --muted: #5d6470; --line: #d9dce2; --desk: #eceef1; --paper: #fff; box-sizing: border-box; }
+*, *::before, *::after { box-sizing: inherit; }
+body { margin: 0; background: var(--desk); color: var(--text); font: 16px/1.55 system-ui, sans-serif; }
+.wrap { max-width: 60rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+p { margin: .25rem 0 1rem; color: var(--muted); }
+.panel { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 1rem; display: grid; gap: .8rem; }
+label span { display: block; font-weight: 600; margin-bottom: .25rem; }
+input, textarea { width: 100%; font: inherit; padding: .55rem .7rem; border: 1.5px solid var(--line); border-radius: 6px; }
+textarea { min-height: 9rem; font-family: ui-monospace, monospace; }
+.actions { display: flex; gap: .6rem; flex-wrap: wrap; }
+button { font: inherit; font-weight: 600; padding: .55rem 1rem; border-radius: 6px; border: 1.5px solid #2a2d33; background: #2a2d33; color: #fff; cursor: pointer; }
+button.ghost { background: transparent; color: var(--text); border-color: var(--line); }
+#status { color: var(--muted); }
+.sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .8rem; margin-top: 1.2rem; }
+.tag { background: var(--paper); border: 1px dashed var(--ink); border-radius: 6px; padding: .8rem; text-align: center; break-inside: avoid; }
+.tag .qr { display: flex; justify-content: center; }
+.tag .qr img, .tag .qr canvas { width: 8rem; height: 8rem; }
+.tag .id { font: 700 1.05rem/1.2 ui-monospace, monospace; letter-spacing: .08em; margin-top: .5rem; }
+.tag .hint { font-size: .75rem; color: var(--muted); }
+@media print {
+  body { background: #fff; }
+  .wrap { padding: 0; max-width: none; }
+  .no-print { display: none !important; }
+  .sheet { grid-template-columns: repeat(4, 1fr); gap: 4mm; margin: 0; }
+  .tag { border-color: #999; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="no-print">
+    <h1>Book QR generator</h1>
+    <p>Paste the BookID column from the Books tab. Each ID becomes a QR code that opens the portal for that book. Print the page, save it as PDF, or download a CSV for your printing press.</p>
+    <div class="panel">
+      <label><span>Website address (same as SITE_URL in Settings)</span>
+        <input id="site" placeholder="https://exam.yourdomain.com/"></label>
+      <label><span>Book IDs, one per line</span>
+        <textarea id="ids" placeholder="7K3M-9Q2X&#10;H4TP-2WNA"></textarea></label>
+      <div class="actions">
+        <button id="make">Make QR codes</button>
+        <button class="ghost" id="print">Print or save as PDF</button>
+        <button class="ghost" id="csv">Download CSV</button>
+      </div>
+      <span id="status"></span>
+    </div>
+  </div>
+  <div class="sheet" id="sheet"></div>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const clean = () => {
+  let site = $('#site').value.trim();
+  if (site && !site.endsWith('/')) site += '/';
+  const ids = [...new Set($('#ids').value.split(/[\s,]+/).map(s => s.trim().toUpperCase()).filter(Boolean))];
+  return { site, ids };
+};
+$('#make').onclick = () => {
+  const { site, ids } = clean();
+  if (!/^https?:\/\//.test(site)) { $('#status').textContent = 'Enter the full website address, starting with https://'; return; }
+  const sheet = $('#sheet');
+  sheet.innerHTML = '';
+  ids.forEach(id => {
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.innerHTML = '<div class="qr"></div><div class="id"></div><div class="hint">Scan to open your exams</div>';
+    tag.querySelector('.id').textContent = id;
+    new QRCode(tag.querySelector('.qr'), { text: site + '?book=' + encodeURIComponent(id), width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M });
+    sheet.appendChild(tag);
+  });
+  $('#status').textContent = ids.length + ' QR code(s) ready.';
+};
+$('#print').onclick = () => window.print();
+$('#csv').onclick = () => {
+  const { site, ids } = clean();
+  const rows = [['BookID', 'URL']].concat(ids.map(id => [id, site + '?book=' + encodeURIComponent(id)]));
+  const blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'book-qr-links.csv'; a.click();
+  URL.revokeObjectURL(a.href);
+};
+</script>
+</body>
+</html>

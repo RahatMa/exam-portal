@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>অনুশীলন পোর্টাল</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+
+<script>
+/* =========================================================
+   SETTINGS — the only part you need to edit
+   ========================================================= */
+const CONFIG = {
+  // Paste the Web app URL from Apps Script (Deploy > Manage deployments).
+  API_URL: 'https://script.google.com/macros/s/AKfycbwgUvgV8Wh1H0PkRvEATrFAVJn5Fz7TQyJHB-alTYA4WkttWU2Yl96C4mz3z_ftyMdh/exec',
+  // Name shown at the top of every page.
+  SITE_NAME: 'Physics Marathon MCQ Book by Rahat Bhaiya',
+  // Shown to students who forget their PIN.
+  SUPPORT_CONTACT: 'প্রকাশকের হেল্পলাইন: 01608370680',
+};
+</script>
+
+<style>
+:root {
+  --desk: #eceef1;
+  --paper: #ffffff;
+  --text: #1d2026;
+  --muted: #5d6470;
+  --line: #d9dce2;
+  --ink: #cc3d78;          /* OMR "drop-out" ink: printed lines and labels */
+  --ink-soft: #f7dbe7;
+  --ink-text: #a3285c;     /* darker ink for small text (contrast) */
+  --graphite: #2a2d33;     /* a pencil-filled bubble */
+  --on-graphite: #ffffff;
+  --right: #147a4b;
+  --right-soft: #dcf1e6;
+  --wrong: #c4321b;
+  --wrong-soft: #fbe2dc;
+  --focus: #2563eb;
+  --serif: "Noto Serif Bengali", "Tiro Bangla", "Kohinoor Bangla", serif;
+  --sans: "Hind Siliguri", "Noto Sans Bengali", "Kohinoor Bangla", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --desk: #131519; --paper: #1d2025; --text: #eceef1; --muted: #a2a8b3; --line: #343841;
+    --ink: #f07aa8; --ink-soft: #3a2230; --ink-text: #f59cbf; --graphite: #e9eaed; --on-graphite: #16181c;
+    --right: #4cc08a; --right-soft: #17321f; --wrong: #ff7a63; --wrong-soft: #3a1d18; --focus: #7aa7ff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --desk: #131519; --paper: #1d2025; --text: #eceef1; --muted: #a2a8b3; --line: #343841;
+  --ink: #f07aa8; --ink-soft: #3a2230; --ink-text: #f59cbf; --graphite: #e9eaed; --on-graphite: #16181c;
+  --right: #4cc08a; --right-soft: #17321f; --wrong: #ff7a63; --wrong-soft: #3a1d18; --focus: #7aa7ff;
+  color-scheme: dark;
+}
+
+:root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+*, *::before, *::after { box-sizing: inherit; }
+body {
+  margin: 0; background: var(--desk); color: var(--text);
+  font-family: var(--sans); font-size: 1.0625rem; line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
+}
+img { max-width: 100%; height: auto; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+.wrap { max-width: 46rem; margin: 0 auto; padding: 0 1rem 4rem; }
+
+/* ---------- top bar ---------- */
+.top {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  max-width: 46rem; margin: 0 auto; padding: 1rem 1rem .75rem;
+}
+.brand { font-family: var(--serif); font-weight: 700; font-size: 1.05rem; text-decoration: none; color: var(--text); }
+.book-chip {
+  font-size: .8125rem; color: var(--ink-text); border: 1px solid var(--ink); border-radius: 4px;
+  padding: .1rem .5rem; letter-spacing: .04em; white-space: nowrap;
+}
+
+/* ---------- the paper surface ---------- */
+.paper {
+  position: relative; background: var(--paper); border-radius: 6px;
+  padding: 1.75rem 1.25rem 1.5rem 2.25rem;
+  box-shadow: 0 1px 0 var(--line), 0 0 0 1px var(--line);
+}
+.paper.has-marks::before {      /* the timing track printed along an OMR sheet's edge */
+  content: ""; position: absolute; left: .7rem; top: 2rem; bottom: 2rem; width: .45rem;
+  background: repeating-linear-gradient(to bottom, var(--graphite) 0 .5rem, transparent .5rem 1.6rem);
+  opacity: .9;
+}
+.reg { position: absolute; width: .7rem; height: .7rem; background: var(--graphite); }
+.reg.tl { top: .55rem; left: .55rem; } .reg.tr { top: .55rem; right: .55rem; }
+.reg.bl { bottom: .55rem; left: .55rem; } .reg.br { bottom: .55rem; right: .55rem; }
+
+h1, h2 { font-family: var(--serif); font-weight: 700; line-height: 1.3; margin: 0; }
+h1 { font-size: 1.6rem; }
+h2 { font-size: 1.2rem; }
+.lede { color: var(--muted); margin: .4rem 0 0; }
+.stack > * + * { margin-top: 1rem; }
+
+/* ---------- forms ---------- */
+label.field { display: block; }
+label.field span { display: block; font-weight: 600; font-size: .95rem; margin-bottom: .3rem; }
+label.field small { display: block; color: var(--muted); font-size: .85rem; margin-top: .25rem; }
+input.text {
+  width: 100%; padding: .7rem .8rem; border: 1.5px solid var(--line); border-radius: 6px;
+  background: var(--paper); font-size: 1.05rem;
+}
+input.text:focus { border-color: var(--ink); outline: none; box-shadow: 0 0 0 3px var(--ink-soft); }
+input.code { letter-spacing: .12em; text-transform: uppercase; font-weight: 600; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+@media (max-width: 420px) { .row2 { grid-template-columns: 1fr; } }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+  min-height: 2.75rem; padding: .55rem 1.1rem; border-radius: 6px; cursor: pointer;
+  border: 1.5px solid var(--graphite); background: var(--graphite); color: var(--on-graphite);
+  font-weight: 600; text-decoration: none;
+}
+.btn.ghost { background: transparent; color: var(--text); border-color: var(--line); }
+.btn.ghost:hover { border-color: var(--graphite); }
+.btn.link { border: 0; background: none; color: var(--ink-text); padding: .3rem 0; min-height: 0; text-decoration: underline; text-underline-offset: 3px; }
+.btn.wide { width: 100%; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+
+.alert { border-left: 4px solid var(--wrong); background: var(--wrong-soft); padding: .6rem .8rem; border-radius: 0 6px 6px 0; }
+.note { border-left: 4px solid var(--ink); background: var(--ink-soft); padding: .6rem .8rem; border-radius: 0 6px 6px 0; font-size: .95rem; }
+
+/* ---------- dashboard ---------- */
+.hello { padding: 1.25rem 0 1rem; }
+.hello h1 { font-size: 1.75rem; }
+.progress { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .6rem; margin-top: .75rem; color: var(--muted); }
+.dots { display: inline-flex; flex-wrap: wrap; gap: .3rem; }
+.dot { width: 1rem; height: 1rem; border-radius: 50%; border: 1.5px solid var(--ink); }
+.dot.on { background: var(--graphite); border-color: var(--graphite); }
+
+.exams { list-style: none; margin: 0; padding: 0; }
+.exam { padding: 1.1rem 0; border-top: 1px dashed var(--line); }
+.exam:first-child { border-top: 0; padding-top: 0; }
+.exam:last-child { padding-bottom: 0; }
+.exam h2 { font-size: 1.15rem; }
+.exam .meta { color: var(--muted); font-size: .92rem; margin: .15rem 0 .5rem; }
+.status { font-size: .95rem; margin: 0 0 .7rem; }
+.status b { font-weight: 600; }
+.status.done b { color: var(--right); }
+.status.todo b { color: var(--ink-text); }
+
+.sideline { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 1.25rem; }
+
+/* ---------- OMR answer sheet ---------- */
+.sheet-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem 1rem; align-items: baseline; padding-bottom: .9rem; border-bottom: 1.5px solid var(--ink); }
+.sheet-head h1 { font-size: 1.25rem; }
+.mode { font-size: .85rem; font-weight: 600; padding: .1rem .55rem; border-radius: 4px; border: 1.5px solid currentColor; white-space: nowrap; }
+.mode.main { color: var(--ink-text); }
+.mode.practice { color: var(--muted); }
+.howto { color: var(--muted); font-size: .92rem; margin: .8rem 0 1rem; }
+
+.omr { columns: 2 15rem; column-gap: 2.5rem; }
+.omr-block { break-inside: avoid; padding: .35rem 0 .9rem; }
+.omr-row { display: flex; align-items: center; gap: .55rem; padding: .22rem 0; }
+.qn {
+  width: 2rem; text-align: right; font-weight: 600; color: var(--ink-text); font-size: .95rem;
+  font-variant-numeric: tabular-nums;
+}
+.bubble {
+  width: 2.35rem; height: 2.35rem; border-radius: 50%; padding: 0; cursor: pointer;
+  border: 1.6px solid var(--ink); background: transparent; color: var(--ink-text);
+  font-weight: 600; font-size: .95rem; line-height: 1; display: grid; place-items: center;
+  transition: background-color .12s, border-color .12s, transform .12s;
+}
+.bubble:hover { background: var(--ink-soft); }
+.bubble[aria-pressed="true"] { background: var(--graphite); border-color: var(--graphite); color: var(--on-graphite); transform: scale(1.04); }
+@media (prefers-reduced-motion: reduce) { .bubble { transition: none; } .bubble[aria-pressed="true"] { transform: none; } }
+
+.submitbar {
+  position: sticky; bottom: env(safe-area-inset-bottom, 0px); z-index: 5; margin-top: 1rem;
+  background: var(--paper); border-top: 1.5px solid var(--ink);
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .75rem 0 .25rem;
+}
+.count { font-size: .92rem; color: var(--muted); line-height: 1.35; }
+.submitbar .btn { white-space: nowrap; flex: none; }
+.count b { color: var(--text); font-size: 1.1rem; }
+
+/* ---------- result ---------- */
+.slip { display: grid; grid-template-columns: auto 1fr; gap: .5rem 1.5rem; align-items: center; }
+.score { font-family: var(--serif); font-weight: 700; line-height: 1; font-size: 3.4rem; font-variant-numeric: tabular-nums; }
+.score small { font-size: 1.4rem; color: var(--muted); font-weight: 500; }
+.tally { list-style: none; margin: 0; padding: 0; display: grid; gap: .15rem; font-size: .98rem; }
+.tally li { display: flex; align-items: center; gap: .5rem; }
+.tally i { width: .8rem; height: .8rem; border-radius: 50%; display: inline-block; }
+.tally .r i { background: var(--right); } .tally .w i { background: var(--wrong); } .tally .b i { border: 1.5px dashed var(--muted); }
+@media (max-width: 420px) { .slip { grid-template-columns: 1fr; } }
+
+.filters { display: flex; gap: .4rem; flex-wrap: wrap; margin: 1.25rem 0 .75rem; }
+.chip { border: 1.5px solid var(--line); background: var(--paper); border-radius: 999px; padding: .3rem .85rem; cursor: pointer; font-size: .92rem; }
+.chip[aria-pressed="true"] { border-color: var(--graphite); background: var(--graphite); color: var(--on-graphite); }
+
+.qcard { padding: 1.1rem 0 1.2rem; border-top: 1px dashed var(--line); }
+.qcard:first-of-type { border-top: 0; }
+.qhead { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
+.qno { font-weight: 700; color: var(--ink-text); }
+.verdict { font-size: .82rem; font-weight: 600; padding: .05rem .5rem; border-radius: 4px; }
+.verdict.correct { background: var(--right-soft); color: var(--right); }
+.verdict.wrong { background: var(--wrong-soft); color: var(--wrong); }
+.verdict.blank { border: 1px dashed var(--muted); color: var(--muted); }
+.qtext { overflow-wrap: anywhere; }
+.qimg { margin: .6rem 0; border-radius: 4px; border: 1px solid var(--line); }
+.opts { list-style: none; margin: .7rem 0 0; padding: 0; display: grid; gap: .35rem; }
+.opt { display: flex; align-items: flex-start; gap: .6rem; padding: .35rem .5rem; border-radius: 6px; }
+.opt .b {
+  flex: none; width: 1.9rem; height: 1.9rem; border-radius: 50%; border: 1.5px solid var(--ink);
+  display: grid; place-items: center; font-size: .85rem; font-weight: 600; color: var(--ink-text); margin-top: .05rem;
+}
+.opt .t { flex: 1; overflow-x: auto; }
+.opt .tag { display: block; font-size: .8rem; font-weight: 600; }
+.opt.is-right { background: var(--right-soft); }
+.opt.is-right .b { background: var(--right); border-color: var(--right); color: #fff; }
+.opt.is-right .tag { color: var(--right); }
+.opt.is-wrong { background: var(--wrong-soft); }
+.opt.is-wrong .b { background: var(--wrong); border-color: var(--wrong); color: #fff; }
+.opt.is-wrong .tag { color: var(--wrong); }
+.soltoggle { margin-top: .6rem; }
+.solution { margin-top: .5rem; padding: .8rem 1rem; border-left: 3px solid var(--ink); background: var(--ink-soft); border-radius: 0 6px 6px 0; overflow-x: auto; }
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: .15rem 0; margin: .4rem 0; }
+
+/* ---------- leaderboard ---------- */
+.tablewrap { overflow-x: auto; }
+table.board { width: 100%; border-collapse: collapse; font-size: .97rem; }
+.board th { text-align: left; font-weight: 600; color: var(--ink-text); border-bottom: 1.5px solid var(--ink); padding: .4rem .5rem; white-space: nowrap; }
+.board td { padding: .55rem .5rem; border-bottom: 1px dashed var(--line); vertical-align: top; }
+.board td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.board tr.me td { background: var(--ink-soft); font-weight: 600; }
+.myrank { font-family: var(--serif); font-size: 1.15rem; }
+
+/* ---------- busy / dialog ---------- */
+.busy { position: fixed; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--desk) 70%, transparent); z-index: 50; }
+.busy div { display: flex; align-items: center; gap: .7rem; background: var(--paper); padding: .9rem 1.2rem; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); }
+.spin { width: 1.4rem; height: 1.4rem; border-radius: 50%; border: 2.5px solid var(--ink-soft); border-top-color: var(--ink); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.5s; } }
+
+dialog { border: 0; border-radius: 8px; padding: 1.4rem; max-width: min(28rem, calc(100vw - 2rem)); background: var(--paper); color: var(--text); box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+dialog::backdrop { background: rgba(20, 22, 26, .45); }
+dialog h2 { margin-bottom: .5rem; }
+dialog .actions { margin-top: 1.2rem; justify-content: flex-end; }
+
+.foot { text-align: center; color: var(--muted); font-size: .85rem; margin-top: 2rem; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="#/" id="brand"></a>
+  <span class="book-chip" id="bookChip" hidden></span>
+</header>
+
+<main class="wrap" id="app" aria-live="polite"></main>
+
+<div class="busy" id="busy" hidden><div><span class="spin" aria-hidden="true"></span><span>লোড হচ্ছে…</span></div></div>
+
+<dialog id="confirm">
+  <h2 id="cTitle"></h2>
+  <div id="cBody"></div>
+  <div class="actions">
+    <button class="btn ghost" value="no" id="cNo">ফিরে যান</button>
+    <button class="btn" value="yes" id="cYes"></button>
+  </div>
+</dialog>
+
+<script>
+(function () {
+'use strict';
+
+/* ---------- tiny helpers ---------- */
+const LABELS = ['ক', 'খ', 'গ', 'ঘ'];
+const KEYS = ['A', 'B', 'C', 'D'];
+const $ = (s, el = document) => el.querySelector(s);
+const app = $('#app');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const bn = v => String(v).replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
+const enDigits = v => String(v ?? '').replace(/[০-৯]/g, d => '০১২৩৪৫৬৭৮৯'.indexOf(d));
+const labelOf = k => LABELS[KEYS.indexOf(k)] || '';
+
+// Text from the sheet: keep line breaks, keep \[ … \] on one line, then typeset math.
+function rich(s) {
+  let t = String(s ?? '').replace(/\r/g, '');
+  t = t.replace(/\\\[([\s\S]*?)\\\]/g, m => m.replace(/\n/g, ' '));
+  t = t.replace(/\n?(\\\[[\s\S]*?\\\])\n?/g, '$1');
+  return esc(t).replace(/\n/g, '<br>');
+}
+function typeset(el) {
+  if (window.renderMathInElement) {
+    window.renderMathInElement(el, {
+      delimiters: [
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$$', right: '$$', display: true },
+        { left: '\\(', right: '\\)', display: false },
+      ],
+      throwOnError: false,
+    });
+  } else {
+    window.addEventListener('load', () => typeset(el), { once: true });
+  }
+}
+
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+
+/* ---------- state ---------- */
+let session = store.get('omr_session') || {};
+let dash = null;        // dashboard data from the server
+let lastResult = null;  // result shown on #/result
+function saveSession() { store.set('omr_session', session); }
+
+/* ---------- server ---------- */
+const MESSAGES = {
+  BOOK_NOT_FOUND: 'এই আইডির কোনো বই পাওয়া যায়নি। বইয়ের প্রথম পাতার আইডিটি আবার মিলিয়ে দেখুন।',
+  BOOK_BLOCKED: 'এই বইটি বন্ধ করা আছে। প্রকাশকের সাথে যোগাযোগ করুন।',
+  PIN_WRONG: 'পিন মেলেনি।',
+  PIN_LOCKED: 'অনেকবার ভুল পিন দেওয়া হয়েছে। এক ঘণ্টা পর আবার চেষ্টা করুন।',
+  PIN_ALREADY_SET: 'এই বইয়ের পিন আগেই সেট করা আছে। পিন দিয়ে প্রবেশ করুন।',
+  PHONE_MISMATCH: 'এই মোবাইল নম্বরটি বইয়ের নিবন্ধনের সাথে মেলেনি।',
+  ALREADY_REGISTERED: 'বইটি আগেই নিবন্ধিত হয়েছে। পিন দিয়ে প্রবেশ করুন।',
+  INVALID_NAME: 'নাম ২ থেকে ৬০ অক্ষরের মধ্যে লিখুন।',
+  INVALID_PHONE: 'সঠিক মোবাইল নম্বর লিখুন (যেমন 017XXXXXXXX)।',
+  INVALID_INSTITUTION: 'প্রতিষ্ঠানের নাম ৮০ অক্ষরের মধ্যে লিখুন।',
+  INVALID_PIN: 'পিন ৪ থেকে ৬ সংখ্যার হতে হবে।',
+  EXAM_NOT_FOUND: 'এই পরীক্ষাটি এখন খোলা নেই।',
+  EXAM_EMPTY: 'এই পরীক্ষায় এখনো কোনো প্রশ্ন যোগ করা হয়নি।',
+  BAD_ANSWERS: 'উত্তরপত্রের প্রশ্নসংখ্যা মেলেনি। পাতাটি রিফ্রেশ করে আবার চেষ্টা করুন।',
+  NO_MAIN_ATTEMPT: 'এই পরীক্ষার মূল উত্তর এখনো জমা দেওয়া হয়নি।',
+  BUSY: 'সার্ভারে এখন অনেক চাপ। কয়েক সেকেন্ড পর আবার চেষ্টা করুন।',
+  NETWORK: 'সার্ভারের সাথে সংযোগ হয়নি। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।',
+  CONFIG: 'Portal setup is not finished: paste the Apps Script Web app URL into CONFIG.API_URL in index.html.',
+  NOT_SET_UP: 'Server setup is not finished. Run "OMR Portal > Set up sheets" in the Google Sheet.',
+};
+function msg(err) {
+  let m = MESSAGES[err.code] || 'কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।';
+  if (err.code === 'PIN_WRONG' && err.data && err.data.attemptsLeft !== undefined) m += ' আর ' + bn(err.data.attemptsLeft) + ' বার চেষ্টা করা যাবে।';
+  return m;
+}
+
+let busyTimer;
+function busy(on) {
+  clearTimeout(busyTimer);
+  if (on) busyTimer = setTimeout(() => { $('#busy').hidden = false; }, 250);
+  else $('#busy').hidden = true;
+}
+
+async function api(action, data = {}) {
+  if (!/^https:\/\//.test(CONFIG.API_URL) && !/^http:\/\/localhost/.test(CONFIG.API_URL)) throw Object.assign(new Error('CONFIG'), { code: 'CONFIG' });
+  busy(true);
+  try {
+    let res;
+    try {
+      res = await fetch(CONFIG.API_URL, { method: 'POST', body: JSON.stringify(Object.assign({ action }, data)) });
+    } catch (e) { throw Object.assign(new Error('NETWORK'), { code: 'NETWORK' }); }
+    let json;
+    try { json = await res.json(); } catch (e) { throw Object.assign(new Error('NETWORK'), { code: 'NETWORK' }); }
+    if (!json.ok) throw Object.assign(new Error(json.error), { code: json.error, data: json });
+    return json;
+  } finally { busy(false); }
+}
+const authed = (action, data = {}) => api(action, Object.assign({ bookId: session.bookId, pin: session.pin }, data));
+
+// If an authenticated call fails because of the PIN or registration, go back to sign-in.
+function handleAuthError(err) {
+  if (['PIN_WRONG', 'PIN_NOT_SET', 'NOT_REGISTERED', 'PIN_LOCKED'].includes(err.code)) {
+    delete session.pin; saveSession(); dash = null;
+    signIn(msg(err));
+    return true;
+  }
+  if (['BOOK_NOT_FOUND', 'BOOK_BLOCKED'].includes(err.code)) {
+    session = {}; saveSession(); dash = null;
+    viewEntry(msg(err));
+    return true;
+  }
+  return false;
+}
+
+/* ---------- chrome ---------- */
+function setChrome() {
+  $('#brand').textContent = CONFIG.SITE_NAME;
+  document.title = CONFIG.SITE_NAME;
+  const chip = $('#bookChip');
+  chip.hidden = !session.bookId;
+  chip.textContent = session.bookId ? 'বই ' + session.bookId : '';
+}
+function paint(html, opts = {}) {
+  setChrome();
+  app.innerHTML = html;
+  window.scrollTo(0, 0);
+  const first = app.querySelector('[autofocus]');
+  if (first && !opts.noFocus) first.focus();
+}
+const errBox = e => e ? `<p class="alert" role="alert">${esc(e)}</p>` : '';
+const marks = '<span class="reg tl"></span><span class="reg tr"></span><span class="reg bl"></span><span class="reg br"></span>';
+
+/* =========================================================
+   VIEWS
+   ========================================================= */
+
+function viewEntry(error) {
+  paint(`
+  <section class="paper stack" style="margin-top:.5rem">${marks}
+    <div>
+      <h1>বইয়ের আইডি দিয়ে প্রবেশ করুন</h1>
+      <p class="lede">বইয়ের প্রথম পাতার QR কোড ফোনের ক্যামেরা দিয়ে স্ক্যান করুন। স্ক্যান না হলে QR কোডের নিচে লেখা আইডিটি এখানে লিখুন।</p>
+    </div>
+    ${errBox(error)}
+    <form id="f" class="stack" novalidate>
+      <label class="field"><span>বইয়ের আইডি</span>
+        <input class="text code" name="id" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="যেমন 7K3M-9Q2X" required autofocus>
+      </label>
+      <button class="btn wide">এগিয়ে যান</button>
+    </form>
+  </section>`);
+  $('#f').onsubmit = e => {
+    e.preventDefault();
+    const id = e.target.id.value.trim().toUpperCase().replace(/\s+/g, '');
+    if (!id) return;
+    session = { bookId: id }; saveSession();
+    signIn();
+  };
+}
+
+async function signIn(error) {
+  if (!session.bookId) return viewEntry(error);
+  try {
+    const r = await api('login', { bookId: session.bookId, pin: session.pin });
+    session.bookId = r.bookId; saveSession();
+    if (r.state === 'register') return viewRegister();
+    if (r.state === 'set_pin') return viewSetPin();
+    if (r.state === 'pin') return viewPin(error);
+    dash = r; route();
+  } catch (err) {
+    if (err.code === 'PIN_WRONG' || err.code === 'PIN_LOCKED') { delete session.pin; saveSession(); return viewPin(msg(err)); }
+    if (err.code === 'BOOK_NOT_FOUND' || err.code === 'BOOK_BLOCKED') { session = {}; saveSession(); return viewEntry(msg(err)); }
+    viewProblem(msg(err), () => signIn(error));
+  }
+}
+
+function viewProblem(text, retry) {
+  paint(`<section class="paper stack" style="margin-top:.5rem">${marks}
+    <h1>সংযোগে সমস্যা</h1>${errBox(text)}
+    <div class="actions"><button class="btn" id="retry">আবার চেষ্টা করুন</button>
+    <button class="btn ghost" id="other">অন্য বইয়ের আইডি দিন</button></div></section>`);
+  $('#retry').onclick = retry;
+  $('#other').onclick = logout;
+}
+
+function viewRegister(error, keep = {}) {
+  paint(`
+  <section class="paper stack" style="margin-top:.5rem">${marks}
+    <div>
+      <h1>বইটি আপনার নামে নিবন্ধন করুন</h1>
+      <p class="lede">একবার নিবন্ধন করলে এই বইয়ের মূল পরীক্ষাগুলোর নম্বর শুধু আপনার নামে গণনা হবে। শীর্ষ তালিকায় আপনার নাম ও প্রতিষ্ঠান দেখানো হবে।</p>
+    </div>
+    ${errBox(error)}
+    <form id="f" class="stack" novalidate>
+      <label class="field"><span>আপনার নাম</span>
+        <input class="text" name="name" autocomplete="name" maxlength="60" value="${esc(keep.name)}" required autofocus></label>
+      <label class="field"><span>মোবাইল নম্বর</span>
+        <input class="text" name="phone" type="tel" inputmode="tel" autocomplete="tel" value="${esc(keep.phone)}" placeholder="017XXXXXXXX" required>
+        <small>পিন ভুলে গেলে এই নম্বর দিয়ে নতুন পিন সেট করা যাবে।</small></label>
+      <label class="field"><span>শিক্ষাপ্রতিষ্ঠান</span>
+        <input class="text" name="institution" maxlength="80" value="${esc(keep.institution)}" autocomplete="organization"></label>
+      <div class="row2">
+        <label class="field"><span>নতুন পিন</span>
+          <input class="text" name="pin" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" required>
+          <small>৪ থেকে ৬ সংখ্যা</small></label>
+        <label class="field"><span>পিন আবার লিখুন</span>
+          <input class="text" name="pin2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" required></label>
+      </div>
+      <p class="note">পিনটি মনে রাখুন। অন্য ফোন বা ব্রাউজার থেকে প্রবেশ করতে এটি লাগবে।</p>
+      <button class="btn wide">নিবন্ধন করুন</button>
+    </form>
+    <button class="btn link" id="other">এটি আমার বই নয়, অন্য আইডি দিন</button>
+  </section>`);
+  $('#other').onclick = logout;
+  $('#f').onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target;
+    const data = { name: f.name.value.trim(), phone: enDigits(f.phone.value.trim()), institution: f.institution.value.trim(), pin: enDigits(f.pin.value.trim()) };
+    if (data.pin !== enDigits(f.pin2.value.trim())) return viewRegister('দুটি পিন মেলেনি। আবার লিখুন।', data);
+    try {
+      const r = await api('register', Object.assign({ bookId: session.bookId }, data));
+      session.pin = data.pin; saveSession();
+      dash = r; location.hash = '#/'; route();
+    } catch (err) {
+      if (err.code === 'ALREADY_REGISTERED') return viewPin(msg(err));
+      viewRegister(msg(err), data);
+    }
+  };
+}
+
+function viewPin(error) {
+  paint(`
+  <section class="paper stack" style="margin-top:.5rem">${marks}
+    <div>
+      <h1>পিন দিয়ে প্রবেশ করুন</h1>
+      <p class="lede">বইটি নিবন্ধনের সময় যে পিন দিয়েছিলেন সেটি লিখুন।</p>
+    </div>
+    ${errBox(error)}
+    <form id="f" class="stack" novalidate>
+      <label class="field"><span>পিন</span>
+        <input class="text" name="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="6" required autofocus></label>
+      <button class="btn wide">প্রবেশ করুন</button>
+    </form>
+    <p class="note">পিন ভুলে গেছেন? ${esc(CONFIG.SUPPORT_CONTACT)}। প্রকাশক পিনটি মুছে দিলে নিবন্ধিত মোবাইল নম্বর দিয়ে নতুন পিন সেট করতে পারবেন।</p>
+    <button class="btn link" id="other">অন্য বইয়ের আইডি দিন</button>
+  </section>`);
+  $('#other').onclick = logout;
+  $('#f').onsubmit = e => {
+    e.preventDefault();
+    const pin = enDigits(e.target.pin.value.trim());
+    if (!pin) return;
+    session.pin = pin; saveSession();
+    signIn();
+  };
+}
+
+function viewSetPin(error) {
+  paint(`
+  <section class="paper stack" style="margin-top:.5rem">${marks}
+    <div>
+      <h1>নতুন পিন সেট করুন</h1>
+      <p class="lede">নিবন্ধনের সময় দেওয়া মোবাইল নম্বরটি লিখে একটি নতুন পিন বেছে নিন।</p>
+    </div>
+    ${errBox(error)}
+    <form id="f" class="stack" novalidate>
+      <label class="field"><span>নিবন্ধিত মোবাইল নম্বর</span>
+        <input class="text" name="phone" type="tel" inputmode="tel" autocomplete="tel" required autofocus></label>
+      <div class="row2">
+        <label class="field"><span>নতুন পিন</span>
+          <input class="text" name="pin" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" required></label>
+        <label class="field"><span>পিন আবার লিখুন</span>
+          <input class="text" name="pin2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" required></label>
+      </div>
+      <button class="btn wide">পিন সেট করুন</button>
+    </form>
+  </section>`);
+  $('#f').onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target;
+    const pin = enDigits(f.pin.value.trim());
+    if (pin !== enDigits(f.pin2.value.trim())) return viewSetPin('দুটি পিন মেলেনি। আবার লিখুন।');
+    try {
+      const r = await api('setPin', { bookId: session.bookId, phone: enDigits(f.phone.value.trim()), pin });
+      session.pin = pin; saveSession(); dash = r; location.hash = '#/'; route();
+    } catch (err) { viewSetPin(msg(err)); }
+  };
+}
+
+/* ---------- dashboard ---------- */
+function viewDashboard() {
+  const d = dash;
+  const total = d.exams.length;
+  const dots = d.exams.map(e => `<span class="dot${e.main ? ' on' : ''}" title="${esc(e.name)}"></span>`).join('');
+  const list = d.exams.map(e => {
+    const m = e.main;
+    const status = m
+      ? `<p class="status done"><b>মূল পরীক্ষা সম্পন্ন:</b> ${bn(m.score)} / ${bn(m.total)} নম্বর</p>`
+      : `<p class="status todo"><b>মূল পরীক্ষা বাকি।</b> প্রথমবার জমা দেওয়া উত্তরই মূল পরীক্ষা হিসেবে গণনা হবে।</p>`;
+    const btns = m
+      ? `<a class="btn ghost" href="#/review/${encodeURIComponent(e.id)}">ফলাফল ও সমাধান</a>
+         <a class="btn ghost" href="#/exam/${encodeURIComponent(e.id)}">আবার অনুশীলন করুন</a>`
+      : `<a class="btn" href="#/exam/${encodeURIComponent(e.id)}">উত্তর জমা দিন</a>`;
+    return `<li class="exam">
+      <h2>${esc(e.name)}</h2>
+      <p class="meta">${bn(e.numQuestions)}টি প্রশ্ন${e.subject ? ', ' + esc(e.subject) : ''}</p>
+      ${status}<div class="actions">${btns}</div></li>`;
+  }).join('');
+
+  paint(`
+  <section class="hello">
+    <h1>${esc(d.student.name)}</h1>
+    ${d.student.institution ? `<p class="lede" style="margin-top:.15rem">${esc(d.student.institution)}</p>` : ''}
+    <div class="progress"><span class="dots" aria-hidden="true">${dots}</span>
+      <span>${bn(total)}টির মধ্যে ${bn(d.completed)}টি মূল পরীক্ষা সম্পন্ন</span></div>
+  </section>
+  <section class="paper has-marks">${marks}
+    ${total ? `<ul class="exams">${list}</ul>` : `<p>এখনো কোনো পরীক্ষা খোলা হয়নি। পরে আবার দেখুন।</p>`}
+  </section>
+  <div class="sideline">
+    <a class="btn ghost" href="#/leaderboard">শীর্ষ তালিকা</a>
+    <button class="btn link" id="logout">এই ফোন থেকে বের হন</button>
+  </div>`, { noFocus: true });
+  $('#logout').onclick = () => {
+    if (confirm('এই ফোন থেকে বের হবেন? আবার প্রবেশ করতে বইয়ের আইডি ও পিন লাগবে।')) logout();
+  };
+}
+
+function logout() {
+  session = {}; dash = null; lastResult = null; saveSession();
+  history.replaceState(null, '', location.pathname);
+  viewEntry();
+}
+
+/* ---------- OMR answer sheet ---------- */
+function viewSheet(examId) {
+  const exam = dash.exams.find(e => e.id === examId);
+  if (!exam) { location.hash = '#/'; return; }
+  const n = exam.numQuestions;
+  const isMain = !exam.main;
+  const draftKey = `omr_draft_${session.bookId}_${exam.id}`;
+  let answers = store.get(draftKey);
+  if (!Array.isArray(answers) || answers.length !== n) answers = Array(n).fill('');
+
+  let rows = '';
+  for (let b = 0; b < n; b += 5) {
+    rows += '<div class="omr-block">';
+    for (let i = b; i < Math.min(b + 5, n); i++) {
+      rows += `<div class="omr-row" role="group" aria-label="প্রশ্ন ${bn(i + 1)}"><span class="qn">${bn(i + 1)}</span>` +
+        KEYS.map((k, j) => `<button type="button" class="bubble" data-q="${i}" data-k="${k}" aria-pressed="${answers[i] === k}" aria-label="প্রশ্ন ${bn(i + 1)}, উত্তর ${LABELS[j]}">${LABELS[j]}</button>`).join('') +
+        `</div>`;
+    }
+    rows += '</div>';
+  }
+
+  paint(`
+  <section class="paper has-marks">${marks}
+    <div class="sheet-head">
+      <h1>${esc(exam.name)}</h1>
+      <span class="mode ${isMain ? 'main' : 'practice'}">${isMain ? 'মূল পরীক্ষা' : 'অনুশীলন: নম্বর সংরক্ষিত হবে না'}</span>
+    </div>
+    <p class="howto">বইয়ের OMR শিটে যে বৃত্তগুলো ভরাট করেছেন, এখানে ঠিক সেগুলোই চাপুন। ভুল চাপলে আবার চাপলে মুছে যাবে।</p>
+    <div class="omr" id="omr">${rows}</div>
+    <div class="submitbar">
+      <span class="count" id="count"></span>
+      <button class="btn" id="send">${isMain ? 'মূল উত্তর জমা দিন' : 'উত্তর মিলিয়ে দেখুন'}</button>
+    </div>
+  </section>
+  <div class="sideline"><a class="btn link" href="#/">পরীক্ষার তালিকায় ফিরে যান</a></div>`, { noFocus: true });
+
+  const updateCount = () => {
+    const done = answers.filter(Boolean).length;
+    $('#count').innerHTML = `উত্তর দেওয়া হয়েছে <b>${bn(done)}</b> / ${bn(n)}`;
+  };
+  updateCount();
+
+  $('#omr').addEventListener('click', e => {
+    const btn = e.target.closest('.bubble');
+    if (!btn) return;
+    const q = +btn.dataset.q, k = btn.dataset.k;
+    answers[q] = answers[q] === k ? '' : k;
+    btn.parentElement.querySelectorAll('.bubble').forEach(b => b.setAttribute('aria-pressed', String(answers[q] === b.dataset.k)));
+    store.set(draftKey, answers);
+    updateCount();
+  });
+
+  $('#send').onclick = async () => {
+    const blanks = answers.filter(a => !a).length;
+    const ok = await ask(
+      isMain ? 'মূল উত্তর জমা দেবেন?' : 'উত্তর মিলিয়ে দেখবেন?',
+      (isMain
+        ? '<p>এটি এই পরীক্ষার আপনার একমাত্র মূল জমা। জমা দেওয়ার পর নম্বর সংরক্ষিত হবে এবং আর বদলানো যাবে না।</p>'
+        : '<p>এটি অনুশীলন। ফলাফল দেখাবে, কিন্তু নম্বর সংরক্ষিত হবে না।</p>') +
+      (blanks ? `<p><b>${bn(blanks)}টি প্রশ্নের উত্তর ফাঁকা আছে।</b></p>` : ''),
+      isMain ? 'জমা দিন' : 'মিলিয়ে দেখুন');
+    if (!ok) return;
+    try {
+      const r = await authed('submit', { examId: exam.id, answers });
+      store.del(draftKey);
+      if (r.mode === 'main') {
+        exam.main = { score: r.result.score, total: r.result.total };
+        dash.completed = dash.exams.filter(e => e.main).length;
+      }
+      lastResult = r;
+      if (location.hash === '#/result') viewResult(); else location.hash = '#/result';
+    } catch (err) {
+      if (handleAuthError(err)) return;
+      alert(msg(err));
+    }
+  };
+}
+
+/* ---------- result ---------- */
+async function loadReview(examId) {
+  try {
+    lastResult = await authed('review', { examId });
+    viewResult();
+  } catch (err) {
+    if (handleAuthError(err)) return;
+    viewProblem(msg(err), () => loadReview(examId));
+  }
+}
+
+function viewResult() {
+  const r = lastResult;
+  if (!r) { location.hash = '#/'; return; }
+  const g = r.result;
+  const modeText = {
+    main: 'মূল পরীক্ষার ফলাফল। নম্বর সংরক্ষিত হয়েছে।',
+    practice: 'অনুশীলনের ফলাফল। এই নম্বর সংরক্ষিত হয়নি।',
+    review: 'আপনার সংরক্ষিত মূল পরীক্ষার ফলাফল।',
+  }[r.mode];
+
+  const items = g.items.map(it => {
+    const opts = it.options.map((o, j) => {
+      const k = KEYS[j];
+      const right = k === it.correct, mine = k === it.given;
+      const cls = right ? 'is-right' : (mine ? 'is-wrong' : '');
+      const tag = right && mine ? 'আপনার উত্তর, সঠিক' : right ? 'সঠিক উত্তর' : mine ? 'আপনার উত্তর' : '';
+      return `<li class="opt ${cls}"><span class="b">${LABELS[j]}</span><span class="t">${rich(o)}${tag ? `<span class="tag">${tag}</span>` : ''}</span></li>`;
+    }).join('');
+    const verdict = { correct: 'সঠিক', wrong: 'ভুল', blank: 'উত্তর দেননি' }[it.status];
+    const img = /^https?:\/\//.test(it.image) ? `<img class="qimg" src="${esc(it.image)}" alt="প্রশ্ন ${bn(it.no)}-এর চিত্র" loading="lazy">` : '';
+    return `<article class="qcard" data-status="${it.status}">
+      <div class="qhead"><span class="qno">প্রশ্ন ${bn(it.no)}</span><span class="verdict ${it.status}">${verdict}</span></div>
+      <div class="qtext">${rich(it.question)}</div>${img}
+      <ol class="opts">${opts}</ol>
+      ${it.solution ? `<button class="btn link soltoggle" aria-expanded="false">সমাধান দেখুন</button>
+      <div class="solution" hidden>${rich(it.solution)}</div>` : ''}
+    </article>`;
+  }).join('');
+
+  paint(`
+  <section class="paper">${marks}
+    <h1 style="font-size:1.25rem">${esc(r.exam.name)}</h1>
+    <p class="lede" style="margin-bottom:1rem">${modeText}</p>
+    <div class="slip">
+      <div class="score">${bn(g.score)}<small> / ${bn(g.total)}</small></div>
+      <ul class="tally">
+        <li class="r"><i></i>সঠিক ${bn(g.correct)}টি</li>
+        <li class="w"><i></i>ভুল ${bn(g.wrong)}টি</li>
+        <li class="b"><i></i>উত্তর দেননি ${bn(g.blank)}টি</li>
+      </ul>
+    </div>
+  </section>
+  <div class="filters" role="group" aria-label="প্রশ্ন বাছাই">
+    <button class="chip" data-f="all" aria-pressed="true">সব ${bn(g.items.length)}</button>
+    <button class="chip" data-f="wrong" aria-pressed="false">ভুল ${bn(g.wrong)}</button>
+    <button class="chip" data-f="blank" aria-pressed="false">ফাঁকা ${bn(g.blank)}</button>
+    <button class="chip" data-f="correct" aria-pressed="false">সঠিক ${bn(g.correct)}</button>
+  </div>
+  <section class="paper" id="qs">${items}</section>
+  <div class="sideline"><a class="btn" href="#/">পরীক্ষার তালিকায় ফিরে যান</a></div>`, { noFocus: true });
+
+  typeset($('#qs'));
+
+  $('.filters').addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if (!c) return;
+    document.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', String(x === c)));
+    document.querySelectorAll('.qcard').forEach(q => { q.hidden = c.dataset.f !== 'all' && q.dataset.status !== c.dataset.f; });
+  });
+  $('#qs').addEventListener('click', e => {
+    const b = e.target.closest('.soltoggle'); if (!b) return;
+    const open = b.getAttribute('aria-expanded') !== 'true';
+    b.setAttribute('aria-expanded', String(open));
+    b.textContent = open ? 'সমাধান লুকান' : 'সমাধান দেখুন';
+    b.nextElementSibling.hidden = !open;
+  });
+}
+
+/* ---------- leaderboard ---------- */
+async function viewLeaderboard() {
+  let r;
+  try { r = await authed('leaderboard'); }
+  catch (err) { if (handleAuthError(err)) return; return viewProblem(msg(err), viewLeaderboard); }
+
+  if (!r.published) {
+    paint(`<section class="paper stack">${marks}
+      <h1>শীর্ষ তালিকা</h1>
+      <p>শীর্ষ শিক্ষার্থীদের তালিকা এখনো প্রকাশিত হয়নি। বইয়ের সবগুলো মূল পরীক্ষা শেষ করলে আপনি তালিকায় আসার যোগ্য হবেন। শীর্ষ শিক্ষার্থীদের নিয়ে পরে প্রতিযোগিতার আয়োজন করা হবে।</p>
+      <p class="note">আপনার অগ্রগতি: ${bn(r.totalExams)}টির মধ্যে ${bn(r.completed)}টি মূল পরীক্ষা সম্পন্ন।</p>
+    </section>
+    <div class="sideline"><a class="btn ghost" href="#/">পরীক্ষার তালিকায় ফিরে যান</a></div>`, { noFocus: true });
+    return;
+  }
+  const rows = r.top.map(x => `<tr class="${x.me ? 'me' : ''}"><td class="n">${bn(x.rank)}</td><td>${esc(x.name)}</td><td>${esc(x.institution)}</td><td class="n">${bn(x.score)} / ${bn(x.total)}</td></tr>`).join('');
+  const mine = r.me
+    ? `<p class="myrank">আপনার অবস্থান ${bn(r.participants)} জনের মধ্যে ${bn(r.me.rank)}, মোট ${bn(r.me.score)} / ${bn(r.me.total)} নম্বর।</p>`
+    : `<p class="note">তালিকায় আসতে বইয়ের সবগুলো মূল পরীক্ষা শেষ করুন। আপনার অগ্রগতি: ${bn(r.totalExams)}টির মধ্যে ${bn(r.completed)}টি।</p>`;
+  paint(`<section class="paper stack">${marks}
+    <h1>শীর্ষ ${bn(r.top.length)} শিক্ষার্থী</h1>
+    ${mine}
+    <div class="tablewrap"><table class="board">
+      <thead><tr><th>অবস্থান</th><th>নাম</th><th>প্রতিষ্ঠান</th><th>নম্বর</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="4">এখনো কেউ পুরো বই শেষ করেনি।</td></tr>'}</tbody>
+    </table></div>
+    <p class="lede" style="font-size:.9rem">নম্বর সমান হলে যিনি আগে সবগুলো পরীক্ষা শেষ করেছেন তিনি এগিয়ে থাকবেন।</p>
+  </section>
+  <div class="sideline"><a class="btn ghost" href="#/">পরীক্ষার তালিকায় ফিরে যান</a></div>`, { noFocus: true });
+}
+
+/* ---------- confirm dialog ---------- */
+function ask(title, bodyHtml, yesText) {
+  const d = $('#confirm');
+  $('#cTitle').textContent = title;
+  $('#cBody').innerHTML = bodyHtml;
+  $('#cYes').textContent = yesText;
+  return new Promise(resolve => {
+    const done = v => { d.close(); $('#cYes').onclick = $('#cNo').onclick = null; resolve(v); };
+    $('#cYes').onclick = () => done(true);
+    $('#cNo').onclick = () => done(false);
+    d.oncancel = e => { e.preventDefault(); done(false); };
+    d.showModal();
+    $('#cNo').focus();
+  });
+}
+
+/* ---------- routing ---------- */
+function route() {
+  if (!session.bookId) return viewEntry();
+  if (!dash) return signIn();
+  const h = location.hash.replace(/^#\/?/, '');
+  const [page, arg] = h.split('/');
+  const id = arg ? decodeURIComponent(arg) : '';
+  if (page === 'exam') return viewSheet(id);
+  if (page === 'review') return loadReview(id);
+  if (page === 'result') return viewResult();
+  if (page === 'leaderboard') return viewLeaderboard();
+  viewDashboard();
+}
+window.addEventListener('hashchange', route);
+
+/* ---------- start ---------- */
+(function boot() {
+  const p = new URLSearchParams(location.search);
+  const fromQr = (p.get('book') || '').trim().toUpperCase().replace(/\s+/g, '');
+  if (fromQr) {
+    if (fromQr !== session.bookId) session = { bookId: fromQr };
+    saveSession();
+    history.replaceState(null, '', location.pathname + location.hash); // hide the ID from the address bar
+  }
+  setChrome();
+  route();
+})();
+})();
+</script>
+</body>
+</html>
