@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@700&display=swap" rel="stylesheet">
+<script src="config.js?v=1"></script>
+<style>
+:root {
+  --desk: #eceef1; --paper: #fff; --text: #1d2026; --muted: #5d6470; --line: #d9dce2;
+  --ink: #cc3d78; --ink-soft: #f7dbe7; --ink-text: #a3285c; --graphite: #2a2d33; --on-graphite: #fff;
+  --ok: #147a4b; --ok-soft: #dcf1e6; --bad: #c4321b; --bad-soft: #fbe2dc; --focus: #2563eb;
+  --sans: "Hind Siliguri", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --desk: #131519; --paper: #1d2025; --text: #eceef1; --muted: #a2a8b3; --line: #343841;
+    --ink: #f07aa8; --ink-soft: #3a2230; --ink-text: #f59cbf; --graphite: #e9eaed; --on-graphite: #16181c;
+    --ok: #4cc08a; --ok-soft: #17321f; --bad: #ff7a63; --bad-soft: #3a1d18; --focus: #7aa7ff; color-scheme: dark;
+  }
+}
+:root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+*, *::before, *::after { box-sizing: inherit; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--desk); color: var(--text); font: 15px/1.55 var(--sans); }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* layout */
+.shell { display: grid; grid-template-columns: 14rem 1fr; min-height: 100vh; }
+.side { background: var(--paper); border-right: 1px solid var(--line); padding: 1rem .75rem; display: flex; flex-direction: column; gap: .2rem; }
+.side .brand { font-family: "Noto Serif Bengali", var(--sans); font-weight: 700; padding: .2rem .6rem .9rem; line-height: 1.3; }
+.side .brand small { display: block; font-family: var(--sans); font-weight: 600; color: var(--ink-text); font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; }
+.side a { display: block; padding: .45rem .6rem; border-radius: 6px; color: var(--text); text-decoration: none; font-weight: 500; }
+.side a:hover { background: var(--desk); }
+.side a[aria-current="page"] { background: var(--ink-soft); color: var(--ink-text); font-weight: 600; }
+.side .me { margin-top: auto; padding: .8rem .6rem 0; border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
+.side .me b { display: block; color: var(--text); }
+main { padding: 1.5rem clamp(1rem, 3vw, 2.5rem) 4rem; max-width: 70rem; width: 100%; }
+@media (max-width: 760px) {
+  .shell { grid-template-columns: 1fr; }
+  .side { flex-direction: row; flex-wrap: wrap; align-items: center; border-right: 0; border-bottom: 1px solid var(--line); padding: .6rem; position: sticky; top: 0; z-index: 5; }
+  .side .brand { padding: 0 .6rem 0 .2rem; flex-basis: 100%; }
+  .side .me { margin: 0 0 0 auto; padding: 0; border: 0; }
+  .side .me b { display: none; }
+}
+
+h1 { font-size: 1.45rem; margin: 0 0 .2rem; line-height: 1.3; }
+h2 { font-size: 1.1rem; margin: 0; }
+.lede { color: var(--muted); margin: 0 0 1.2rem; }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.1rem; }
+.stack > * + * { margin-top: 1rem; }
+.row { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+.spacer { flex: 1; }
+
+.btn { display: inline-flex; align-items: center; gap: .35rem; min-height: 2.4rem; padding: .4rem .9rem; border-radius: 6px; cursor: pointer;
+  border: 1.5px solid var(--graphite); background: var(--graphite); color: var(--on-graphite); font-weight: 600; text-decoration: none; }
+.btn.ghost { background: transparent; color: var(--text); border-color: var(--line); }
+.btn.ghost:hover { border-color: var(--graphite); }
+.btn.danger { background: transparent; color: var(--bad); border-color: var(--bad); }
+.btn.sm { min-height: 2rem; padding: .2rem .65rem; font-size: .88rem; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.link { background: none; border: 0; padding: 0; color: var(--ink-text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font-weight: 600; }
+
+label.f { display: block; }
+label.f > span { display: block; font-weight: 600; font-size: .88rem; margin-bottom: .25rem; }
+label.f small { display: block; color: var(--muted); font-size: .8rem; margin-top: .2rem; }
+input.t, select.t { width: 100%; padding: .5rem .65rem; border: 1.5px solid var(--line); border-radius: 6px; background: var(--paper); }
+input.t:focus, select.t:focus { border-color: var(--ink); outline: none; box-shadow: 0 0 0 3px var(--ink-soft); }
+.check { display: flex; gap: .5rem; align-items: center; font-weight: 500; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+@media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } }
+
+.alert { border-left: 4px solid var(--bad); background: var(--bad-soft); padding: .55rem .8rem; border-radius: 0 6px 6px 0; }
+.note { border-left: 4px solid var(--ink); background: var(--ink-soft); padding: .55rem .8rem; border-radius: 0 6px 6px 0; }
+.pill { display: inline-block; font-size: .75rem; font-weight: 600; padding: 0 .5rem; border-radius: 999px; border: 1px solid currentColor; line-height: 1.6; white-space: nowrap; }
+.pill.ok { color: var(--ok); } .pill.off { color: var(--muted); } .pill.super { color: var(--ink-text); }
+.muted { color: var(--muted); }
+
+/* tables */
+.tw { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; padding: .45rem .6rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: .55rem .6rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
+td.n { font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: 0; }
+code { font-size: .88em; background: var(--desk); padding: .05rem .35rem; border-radius: 4px; }
+
+/* catalog */
+.titles { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.titles button { border: 1.5px solid var(--line); background: var(--paper); border-radius: 999px; padding: .3rem .9rem; cursor: pointer; font-weight: 600; }
+.titles button[aria-pressed="true"] { border-color: var(--graphite); background: var(--graphite); color: var(--on-graphite); }
+.subj + .subj { margin-top: 1rem; }
+.subj header { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-bottom: .4rem; }
+
+/* sign-in */
+.center { min-height: 100vh; display: grid; place-items: center; padding: 1.5rem; }
+.center .card { width: min(26rem, 100%); padding: 1.6rem; }
+
+dialog { border: 0; border-radius: 10px; padding: 1.3rem; width: min(32rem, calc(100vw - 2rem)); background: var(--paper); color: var(--text); box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+dialog::backdrop { background: rgba(20,22,26,.45); }
+dialog h2 { margin-bottom: .9rem; }
+dialog .actions { display: flex; gap: .5rem; justify-content: flex-end; flex-wrap: wrap; margin-top: 1.2rem; }
+dialog .actions .left { margin-right: auto; }
+
+.toast { position: fixed; left: 50%; bottom: calc(1.2rem + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--graphite); color: var(--on-graphite);
+  padding: .55rem 1rem; border-radius: 8px; font-weight: 600; z-index: 60; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+.busy { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, var(--ink), transparent); background-size: 50% 100%; animation: slide 1s linear infinite; z-index: 70; }
+@keyframes slide { from { background-position: -50% 0; } to { background-position: 150% 0; } }
+@media (prefers-reduced-motion: reduce) { .busy { animation: none; background: var(--ink); } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="busy" id="busy" hidden></div>
+<div class="toast" id="toast" role="status" hidden></div>
+<dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
+
+<script>
+(function () {
+'use strict';
+const CFG = Object.assign({ API_URL: '', SITE_NAME: 'Portal' }, window.PORTAL_CONFIG || {});
+const API_URL = String(CFG.API_URL || '').trim();
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+let token = store.get('omr_admin_token') || '';
+let me = null, cat = null, selTitle = null;
+
+const ERR = {
+  NETWORK: 'Could not reach the server. Check the internet connection.',
+  CONFIG: 'API_URL in config.js is not set.',
+  UNKNOWN_ACTION: 'Your Apps Script is an old version. Paste the new Code.gs and deploy a New version.',
+  NOT_SET_UP: 'Run OMR Portal > "1. Set up / upgrade sheets" in the Google Sheet first.',
+  BAD_SETUP_CODE: 'That setup code is not right. Find it in the Settings tab (ADMIN_SETUP_CODE).',
+  ALREADY_SET_UP: 'A super admin already exists. Sign in instead.',
+  LOGIN_FAILED: 'Wrong email or password.',
+  LOGIN_LOCKED: 'Too many wrong tries. Try again in an hour.',
+  NOT_SIGNED_IN: 'Please sign in again.',
+  SUPER_ONLY: 'Only a super admin can do this.',
+  INVALID_EMAIL: 'Enter a valid email address.',
+  INVALID_NAME: 'Enter a name (2 or more characters).',
+  WEAK_PASSWORD: 'Password must be at least 8 characters.',
+  CANNOT_DEMOTE_SELF: "You can't remove your own super admin role or disable yourself.",
+  INVALID_EXAM_ID: 'Exam ID: 2–20 characters, only letters, numbers and - _ . (for example PHY-02).',
+  EXAM_ID_TAKEN: 'That exam ID is already used.',
+  INVALID_MARKING: 'Marks for correct must be above 0; marks for wrong must be 0 or negative (e.g. -0.25).',
+  SUBJECT_HAS_EXAMS: 'Move or delete this subject’s exams first.',
+  TITLE_HAS_SUBJECTS: 'Delete this book’s subjects first.',
+  TITLE_HAS_BOOKS: 'Book IDs (printed copies) belong to this book, so it can’t be deleted. Mark it inactive instead.',
+  TITLE_NOT_FOUND: 'That book no longer exists. Reload the page.',
+  SUBJECT_NOT_FOUND: 'Choose a subject.',
+  BUSY: 'The server is busy. Try again in a few seconds.',
+};
+const errText = e => ERR[e.code] || ('Something went wrong (' + (e.code || e.message || e) + ').');
+
+let busyN = 0;
+function busy(d) { busyN += d; $('#busy').hidden = busyN <= 0; }
+async function api(action, data = {}) {
+  if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(API_URL) && !/^http:\/\/localhost/.test(API_URL)) throw { code: 'CONFIG' };
+  busy(1);
+  try {
+    let res;
+    try { res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(Object.assign({ action, token }, data)) }); }
+    catch (e) { throw { code: 'NETWORK' }; }
+    const j = await res.json().catch(() => ({ ok: false, error: 'NETWORK' }));
+    if (!j.ok) {
+      if (j.error === 'NOT_SIGNED_IN') { token = ''; store.del('omr_admin_token'); me = null; setTimeout(() => showSignIn(ERR.NOT_SIGNED_IN), 0); }
+      throw { code: j.error, data: j };
+    }
+    return j;
+  } finally { busy(-1); }
+}
+let toastT;
+function toast(t) { const el = $('#toast'); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 2600); }
+
+/* ---------- dialog helper ---------- */
+function dialog(html, onSubmit, init) {
+  const d = $('#dlg'), f = $('#dlgForm');
+  f.innerHTML = html;
+  f.onsubmit = async e => {
+    const btn = e.submitter;
+    if (!btn || btn.value === 'cancel') return;
+    e.preventDefault();
+    const box = f.querySelector('.err');
+    try {
+      btn.disabled = true;
+      const r = await onSubmit(btn.value, f);
+      if (r !== false) d.close();
+    } catch (err) {
+      if (err && err.code === 'NOT_SIGNED_IN') { d.close(); return; }
+      if (box) { box.hidden = false; box.textContent = errText(err); }
+    } finally { btn.disabled = false; }
+  };
+  if (init) init(f);
+  d.showModal();
+  const first = f.querySelector('input:not([readonly]):not([type=checkbox]), select');
+  if (first) first.focus();
+}
+
+/* ---------- sign-in & first setup ---------- */
+async function boot() {
+  if (token) {
+    try { me = (await api('adminMe')).admin; return route(); } catch (e) { if (e.code !== 'NOT_SIGNED_IN') return showSignIn(errText(e)); }
+  }
+  try {
+    const s = await api('adminStatus');
+    if (s.needsSetup) return showSetup();
+  } catch (e) { return showSignIn(errText(e)); }
+  showSignIn();
+}
+
+function centerCard(html) { $('#root').innerHTML = `<div class="center"><div class="card stack">${html}</div></div>`; }
+
+function showSignIn(error) {
+  centerCard(`
+    <div><h1>${esc(CFG.SITE_NAME)}</h1><p class="lede" style="margin:0">Admin sign-in</p></div>
+    ${error ? `<p class="alert" role="alert">${esc(error)}</p>` : ''}
+    <form id="f" class="stack">
+      <label class="f"><span>Email</span><input class="t" name="email" type="email" autocomplete="username" required autofocus></label>
+      <label class="f"><span>Password</span><input class="t" name="password" type="password" autocomplete="current-password" required></label>
+      <button class="btn" style="width:100%;justify-content:center">Sign in</button>
+    </form>`);
+  $('#f').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      const r = await api('adminLogin', { email: e.target.email.value, password: e.target.password.value });
+      token = r.token; store.set('omr_admin_token', token); me = r.admin;
+      location.hash = '#/'; route();
+    } catch (err) { showSignIn(errText(err)); }
+  };
+}
+
+function showSetup(error) {
+  centerCard(`
+    <div><h1>Create the super admin</h1><p class="lede" style="margin:0">One-time setup. The setup code is in the Google Sheet's Settings tab (<code>ADMIN_SETUP_CODE</code>), or use OMR Portal &gt; Show admin setup code.</p></div>
+    ${error ? `<p class="alert" role="alert">${esc(error)}</p>` : ''}
+    <form id="f" class="stack">
+      <label class="f"><span>Setup code</span><input class="t" name="code" autocomplete="off" required autofocus></label>
+      <label class="f"><span>Your name</span><input class="t" name="name" autocomplete="name" required></label>
+      <label class="f"><span>Email</span><input class="t" name="email" type="email" autocomplete="username" required></label>
+      <label class="f"><span>Password</span><input class="t" name="password" type="password" autocomplete="new-password" minlength="8" required><small>At least 8 characters.</small></label>
+      <button class="btn" style="width:100%;justify-content:center">Create super admin</button>
+    </form>`);
+  $('#f').onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      const r = await api('adminSetup', { setupCode: f.code.value.trim(), name: f.name.value, email: f.email.value, password: f.password.value });
+      token = r.token; store.set('omr_admin_token', token); me = r.admin;
+      location.hash = '#/'; route();
+    } catch (err) { showSetup(errText(err)); }
+  };
+}
+
+async function signOut() {
+  try { await api('adminLogout'); } catch (e) {}
+  token = ''; store.del('omr_admin_token'); me = null; showSignIn();
+}
+
+/* ---------- shell ---------- */
+const NAV = [
+  { id: '', label: 'Books & exams' },
+  { id: 'admins', label: 'Admins', super: true },
+  { id: 'log', label: 'Activity log', super: true },
+  { id: 'account', label: 'My account' },
+];
+function shell(page, html) {
+  $('#root').innerHTML = `<div class="shell">
+    <nav class="side" aria-label="Admin">
+      <div class="brand"><small>Admin</small>${esc(CFG.SITE_NAME)}</div>
+      ${NAV.filter(n => !n.super || me.role === 'super').map(n => `<a href="#/${n.id}" ${n.id === page ? 'aria-current="page"' : ''}>${n.label}</a>`).join('')}
+      <div class="me"><b>${esc(me.name)}</b>${me.role === 'super' ? 'Super admin' : 'Editor'} · <button class="link" id="out">Sign out</button></div>
+    </nav>
+    <main id="main">${html}</main></div>`;
+  $('#out').onclick = signOut;
+}
+
+function route() {
+  if (!me) return boot();
+  const page = location.hash.replace(/^#\/?/, '').split('/')[0];
+  if (page === 'admins' && me.role === 'super') return viewAdmins();
+  if (page === 'log' && me.role === 'super') return viewLog();
+  if (page === 'account') return viewAccount();
+  return viewCatalog();
+}
+window.addEventListener('hashchange', () => { if (me) route(); });
+
+/* ---------- books, subjects, exams ---------- */
+async function viewCatalog() {
+  shell('', '<p class="muted">Loading…</p>');
+  try { cat = await api('catalog'); } catch (e) { if (e.code !== 'NOT_SIGNED_IN') $('#main').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; return; }
+  renderCatalog();
+}
+
+function renderCatalog() {
+  if (!cat.titles.some(t => t.id === selTitle)) selTitle = cat.titles.length ? cat.titles[0].id : null;
+  const t = cat.titles.find(x => x.id === selTitle);
+  const subs = t ? cat.subjects.filter(s => s.titleId === t.id) : [];
+  const examRows = s => {
+    const ex = cat.exams.filter(e => e.subjectId === s.id);
+    if (!ex.length) return '<p class="muted" style="margin:.2rem 0 0">No exams yet.</p>';
+    return `<div class="tw"><table><thead><tr><th>Exam ID</th><th>Name</th><th>Questions</th><th>Results</th><th>Marking</th><th>Students see it</th><th></th></tr></thead><tbody>
+      ${ex.map(e => `<tr>
+        <td><code>${esc(e.id)}</code></td><td>${esc(e.name)}</td>
+        <td class="n">${e.questions}</td><td class="n">${e.attempts}</td>
+        <td class="n">${e.markCorrect === null && e.markWrong === null ? `<span class="muted">default</span>` : `+${e.markCorrect === null ? cat.defaults.markCorrect : e.markCorrect} / ${e.markWrong === null ? cat.defaults.markWrong : e.markWrong}`}</td>
+        <td>${e.open ? '<span class="pill ok">Open</span>' : '<span class="pill off">Hidden</span>'}</td>
+        <td style="text-align:right"><button class="btn ghost sm" data-exam="${esc(e.id)}">Edit</button></td></tr>`).join('')}
+      </tbody></table></div>`;
+  };
+  $('#main').innerHTML = `
+    <div class="row" style="margin-bottom:.2rem"><h1>Books & exams</h1><span class="spacer"></span><button class="btn" id="addTitle">+ Add book</button></div>
+    <p class="lede">A <b>book</b> is what you publish. It holds <b>subjects</b>, and each subject holds <b>exams</b>. One book ID (printed copy) unlocks every subject and exam in its book.</p>
+    ${cat.titles.length ? `<div class="titles" role="group" aria-label="Books">${cat.titles.map(x => `<button data-title="${esc(x.id)}" aria-pressed="${x.id === selTitle}">${esc(x.name)}${x.active ? '' : ' (inactive)'}</button>`).join('')}</div>` : '<p class="note">No books yet. Add your first book.</p>'}
+    ${t ? `<div class="card stack">
+      <div class="row"><div><h2>${esc(t.name)}</h2><span class="muted">ID <code>${esc(t.id)}</code> · ${t.books} printed cop${t.books === 1 ? 'y' : 'ies'} · ${subs.length} subject${subs.length === 1 ? '' : 's'}</span></div>
+        <span class="spacer"></span><button class="btn ghost sm" id="editTitle">Edit book</button><button class="btn sm" id="addSubject">+ Add subject</button></div>
+      ${subs.length ? subs.map(s => `<section class="subj">
+        <header><h2>${esc(s.name)}</h2><span class="spacer"></span>
+          <button class="btn ghost sm" data-subject="${esc(s.id)}">Edit subject</button>
+          <button class="btn sm" data-addexam="${esc(s.id)}">+ Add exam</button></header>
+        ${examRows(s)}</section>`).join('') : '<p class="muted">No subjects yet. Add one, for example "পদার্থবিজ্ঞান".</p>'}
+    </div>` : ''}`;
+
+  $('#addTitle').onclick = () => titleDialog(null);
+  document.querySelectorAll('[data-title]').forEach(b => { b.onclick = () => { selTitle = b.dataset.title; renderCatalog(); }; });
+  if (t) {
+    $('#editTitle').onclick = () => titleDialog(t);
+    $('#addSubject').onclick = () => subjectDialog(null);
+  }
+  document.querySelectorAll('[data-subject]').forEach(b => { b.onclick = () => subjectDialog(cat.subjects.find(s => s.id === b.dataset.subject)); });
+  document.querySelectorAll('[data-addexam]').forEach(b => { b.onclick = () => examDialog(null, b.dataset.addexam); });
+  document.querySelectorAll('[data-exam]').forEach(b => { b.onclick = () => examDialog(cat.exams.find(e => e.id === b.dataset.exam)); });
+}
+
+const dlgButtons = (saveText, del) => `<p class="alert err" role="alert" hidden></p>
+  <div class="actions">${del ? `<button class="btn danger left" value="delete" formnovalidate>${del}</button>` : ''}
+  <button class="btn ghost" value="cancel" formnovalidate>Cancel</button><button class="btn" value="save">${saveText}</button></div>`;
+
+function titleDialog(t) {
+  dialog(`<h2>${t ? 'Edit book' : 'Add a book'}</h2><div class="stack">
+    <label class="f"><span>Book name</span><input class="t" name="name" value="${esc(t ? t.name : '')}" required maxlength="100"><small>Shown to students at the top of their page, e.g. "এইচএসসি বিজ্ঞান অনুশীলন বই ২০২৬".</small></label>
+    <div class="grid2"><label class="f"><span>Order</span><input class="t" name="order" type="number" value="${t ? t.order : cat.titles.length + 1}"></label>
+    <label class="f"><span>&nbsp;</span><span class="check"><input type="checkbox" name="active" ${!t || t.active ? 'checked' : ''}> Active</span></label></div>
+    </div>${dlgButtons(t ? 'Save' : 'Add book', t && me.role === 'super' ? 'Delete book' : '')}`,
+  async (v, f) => {
+    if (v === 'delete') {
+      if (!confirm(`Delete the book "${t.name}"?`)) return false;
+      cat = await api('titleDelete', { id: t.id }); toast('Book deleted');
+    } else {
+      cat = await api('titleSave', { id: t ? t.id : '', name: f.name.value, order: f.order.value, active: f.active.checked });
+      if (!t) selTitle = cat.titles[cat.titles.length - 1].id;
+      toast(t ? 'Book saved' : 'Book added');
+    }
+    renderCatalog();
+  });
+}
+
+function subjectDialog(s) {
+  dialog(`<h2>${s ? 'Edit subject' : 'Add a subject'}</h2><div class="stack">
+    <label class="f"><span>Subject name</span><input class="t" name="name" value="${esc(s ? s.name : '')}" required maxlength="80"></label>
+    <div class="grid2"><label class="f"><span>Book</span><select class="t" name="title">${cat.titles.map(x => `<option value="${esc(x.id)}" ${(s ? s.titleId : selTitle) === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+    <label class="f"><span>Order</span><input class="t" name="order" type="number" value="${s ? s.order : cat.subjects.filter(x => x.titleId === selTitle).length + 1}"></label></div>
+    </div>${dlgButtons(s ? 'Save' : 'Add subject', s ? 'Delete subject' : '')}`,
+  async (v, f) => {
+    if (v === 'delete') {
+      if (!confirm(`Delete the subject "${s.name}"?`)) return false;
+      cat = await api('subjectDelete', { id: s.id }); toast('Subject deleted');
+    } else {
+      cat = await api('subjectSave', { id: s ? s.id : '', name: f.name.value, titleId: f.title.value, order: f.order.value });
+      selTitle = f.title.value; toast(s ? 'Subject saved' : 'Subject added');
+    }
+    renderCatalog();
+  });
+}
+
+function examDialog(e, subjectId) {
+  const subs = cat.subjects.map(s => {
+    const t = cat.titles.find(x => x.id === s.titleId);
+    return `<option value="${esc(s.id)}" ${(e ? e.subjectId : subjectId) === s.id ? 'selected' : ''}>${esc((t ? t.name + ' › ' : '') + s.name)}</option>`;
+  }).join('');
+  const canDelete = e && (e.attempts === 0 || me.role === 'super');
+  dialog(`<h2>${e ? 'Edit exam' : 'Add an exam'}</h2><div class="stack">
+    <div class="grid2">
+      <label class="f"><span>Exam ID</span><input class="t" name="id" value="${esc(e ? e.id : '')}" ${e ? 'readonly' : 'required'} maxlength="20" pattern="[A-Za-z0-9_.\\-]{2,20}" style="text-transform:uppercase">
+        <small>${e ? 'Can’t be changed: it is printed in the OMR sheet’s QR code.' : 'Short code, e.g. PHY-02. Printed on the OMR sheet.'}</small></label>
+      <label class="f"><span>Order</span><input class="t" name="order" type="number" value="${e ? e.order : cat.exams.filter(x => x.subjectId === subjectId).length + 1}"></label>
+    </div>
+    <label class="f"><span>Exam name</span><input class="t" name="name" value="${esc(e ? e.name : '')}" required maxlength="120"></label>
+    <label class="f"><span>Subject</span><select class="t" name="subject" required>${subs}</select></label>
+    <div class="grid2">
+      <label class="f"><span>Marks per correct answer</span><input class="t" name="mc" type="number" step="0.01" min="0.01" value="${e && e.markCorrect !== null ? e.markCorrect : ''}" placeholder="Default: ${cat.defaults.markCorrect}"></label>
+      <label class="f"><span>Marks per wrong answer</span><input class="t" name="mw" type="number" step="0.01" max="0" value="${e && e.markWrong !== null ? e.markWrong : ''}" placeholder="Default: ${cat.defaults.markWrong}"><small>Use a negative number such as -0.25 for negative marking.</small></label>
+    </div>
+    <label class="check"><input type="checkbox" name="open" ${e && e.open ? 'checked' : ''}> Students can see and take this exam</label>
+    ${e && e.attempts ? `<p class="note">${e.attempts} student result(s) exist. After changing marking, scores are recalculated with "Recalculate all scores" in the Sheet menu.</p>` : ''}
+    </div>${dlgButtons(e ? 'Save' : 'Add exam', canDelete ? 'Delete exam' : '')}`,
+  async (v, f) => {
+    if (v === 'delete') {
+      let confirmId = '';
+      if (e.attempts) {
+        confirmId = prompt(`"${e.id}" has ${e.attempts} student result(s). Deleting removes the exam and its ${e.questions} question(s); results stay in the Attempts tab.\n\nType the exam ID to confirm:`);
+        if (confirmId === null) return false;
+        confirmId = confirmId.trim().toUpperCase();
+      } else if (!confirm(`Delete "${e.id}" and its ${e.questions} question(s)?`)) return false;
+      cat = await api('examDelete', { id: e.id, confirm: confirmId }); toast('Exam deleted');
+    } else {
+      cat = await api('examSave', {
+        isNew: !e, id: f.id.value.trim().toUpperCase(), name: f.name.value, subjectId: f.subject.value, order: f.order.value,
+        open: f.open.checked, markCorrect: f.mc.value, markWrong: f.mw.value,
+      });
+      const s = cat.subjects.find(x => x.id === f.subject.value); if (s) selTitle = s.titleId;
+      toast(e ? 'Exam saved' : 'Exam added');
+    }
+    renderCatalog();
+  });
+}
+
+/* ---------- admins ---------- */
+async function viewAdmins() {
+  shell('admins', '<p class="muted">Loading…</p>');
+  let list;
+  try { list = (await api('adminList')).admins; } catch (e) { if (e.code !== 'NOT_SIGNED_IN') $('#main').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; return; }
+  const draw = () => {
+    $('#main').innerHTML = `
+      <div class="row" style="margin-bottom:.2rem"><h1>Admins</h1><span class="spacer"></span><button class="btn" id="add">+ Add admin</button></div>
+      <p class="lede"><b>Super admins</b> can do everything. <b>Editors</b> manage books, exams and questions and can view results, but can't manage book IDs, students, admins or settings.</p>
+      <div class="card tw"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>
+      ${list.map(a => `<tr><td>${esc(a.name)}</td><td>${esc(a.email)}</td>
+        <td>${a.role === 'super' ? '<span class="pill super">Super admin</span>' : '<span class="pill off">Editor</span>'}</td>
+        <td>${a.active ? '<span class="pill ok">Active</span>' : '<span class="pill off">Disabled</span>'}</td>
+        <td class="muted">${a.lastLogin ? esc(new Date(a.lastLogin).toLocaleString()) : 'Never'}</td>
+        <td style="text-align:right"><button class="btn ghost sm" data-a="${esc(a.email)}">Edit</button></td></tr>`).join('')}
+      </tbody></table></div>`;
+    $('#add').onclick = () => adminDialog(null);
+    document.querySelectorAll('[data-a]').forEach(b => { b.onclick = () => adminDialog(list.find(a => a.email === b.dataset.a)); });
+  };
+  const adminDialog = a => dialog(`<h2>${a ? 'Edit admin' : 'Add an admin'}</h2><div class="stack">
+      <label class="f"><span>Name</span><input class="t" name="name" value="${esc(a ? a.name : '')}" required></label>
+      <label class="f"><span>Email</span><input class="t" name="email" type="email" value="${esc(a ? a.email : '')}" ${a ? 'readonly' : 'required'}></label>
+      <div class="grid2"><label class="f"><span>Role</span><select class="t" name="role"><option value="editor">Editor</option><option value="super" ${a && a.role === 'super' ? 'selected' : ''}>Super admin</option></select></label>
+      <label class="f"><span>&nbsp;</span><span class="check"><input type="checkbox" name="active" ${!a || a.active ? 'checked' : ''}> Can sign in</span></label></div>
+      <label class="f"><span>${a ? 'New password (leave empty to keep)' : 'Password'}</span><input class="t" name="password" type="password" autocomplete="new-password" ${a ? '' : 'required'} minlength="8"><small>At least 8 characters. Share it with them privately; they can change it under My account.</small></label>
+    </div>${dlgButtons(a ? 'Save' : 'Add admin')}`,
+  async (v, f) => {
+    list = (await api('adminSave', { email: f.email.value, name: f.name.value, role: f.role.value, active: f.active.checked, password: f.password.value })).admins;
+    toast(a ? 'Admin saved' : 'Admin added'); draw();
+  });
+  draw();
+}
+
+/* ---------- activity log ---------- */
+async function viewLog() {
+  shell('log', '<p class="muted">Loading…</p>');
+  let log;
+  try { log = (await api('logList')).log; } catch (e) { if (e.code !== 'NOT_SIGNED_IN') $('#main').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; return; }
+  $('#main').innerHTML = `<h1>Activity log</h1><p class="lede">The latest 300 changes made by admins.</p>
+    <div class="card tw"><table><thead><tr><th>When</th><th>Who</th><th>What</th><th>Details</th></tr></thead><tbody>
+    ${log.map(l => `<tr><td class="muted" style="white-space:nowrap">${esc(l.at ? new Date(l.at).toLocaleString() : '')}</td><td>${esc(l.admin)}</td><td><code>${esc(l.action)}</code></td><td>${esc(l.details)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Nothing yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+
+/* ---------- my account ---------- */
+function viewAccount() {
+  shell('account', `<h1>My account</h1><p class="lede">${esc(me.name)} · ${esc(me.email)} · ${me.role === 'super' ? 'Super admin' : 'Editor'}</p>
+    <form class="card stack" id="pw" style="max-width:28rem">
+      <h2>Change password</h2>
+      <label class="f"><span>Current password</span><input class="t" name="old" type="password" autocomplete="current-password" required></label>
+      <label class="f"><span>New password</span><input class="t" name="nw" type="password" autocomplete="new-password" minlength="8" required><small>At least 8 characters.</small></label>
+      <p class="alert err" hidden></p>
+      <div><button class="btn">Change password</button></div>
+    </form>`);
+  $('#pw').onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target, box = f.querySelector('.err');
+    try { await api('adminPassword', { oldPassword: f.old.value, newPassword: f.nw.value }); f.reset(); box.hidden = true; toast('Password changed'); }
+    catch (err) { box.hidden = false; box.textContent = err.code === 'LOGIN_FAILED' ? 'Current password is wrong.' : errText(err); }
+  };
+}
+
+boot();
+})();
+</script>
+</body>
+</html>
