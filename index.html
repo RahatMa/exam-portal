@@ -159,6 +159,11 @@ input.code { letter-spacing: .12em; text-transform: uppercase; font-weight: 600;
 .status.done b { color: var(--right); }
 .status.todo b { color: var(--ink-text); }
 
+.booktitle { margin: 0 0 .2rem; font-size: .9rem; font-weight: 600; color: var(--ink-text); }
+.subject + .subject { margin-top: 1.6rem; }
+.subjname { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-size: 1.05rem; color: var(--ink-text);
+  padding-bottom: .4rem; margin-bottom: .9rem; border-bottom: 1.5px solid var(--ink); }
+.subjname span { font-family: var(--sans); font-size: .85rem; font-weight: 600; color: var(--muted); }
 .sideline { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 1.25rem; }
 
 /* ---------- OMR answer sheet ---------- */
@@ -627,12 +632,12 @@ function viewDashboard() {
   const d = dash;
   const total = d.exams.length;
   const dots = d.exams.map(e => `<span class="dot${e.main ? ' on' : ''}" title="${esc(e.name)}"></span>`).join('');
-  const list = d.exams.map(e => {
+  const examHtml = e => {
     const m = e.main;
     if (d.admin) {
       return `<li class="exam">
         <h2>${esc(e.name)}${e.hidden ? '<span class="hiddenlabel">শিক্ষার্থীদের কাছে লুকানো</span>' : ''}</h2>
-        <p class="meta">${bn(e.numQuestions)}টি প্রশ্ন${e.subject ? ', ' + esc(e.subject) : ''}</p>
+        <p class="meta">${bn(e.numQuestions)}টি প্রশ্ন</p>
         <div class="actions"><a class="btn" href="#/exam/${encodeURIComponent(e.id)}">প্রিভিউ করুন</a></div></li>`;
     }
     const status = m
@@ -644,12 +649,23 @@ function viewDashboard() {
       : `<a class="btn" href="#/exam/${encodeURIComponent(e.id)}">উত্তর জমা দিন</a>`;
     return `<li class="exam">
       <h2>${esc(e.name)}</h2>
-      <p class="meta">${bn(e.numQuestions)}টি প্রশ্ন${e.subject ? ', ' + esc(e.subject) : ''}</p>
+      <p class="meta">${bn(e.numQuestions)}টি প্রশ্ন</p>
       ${status}<div class="actions">${btns}</div></li>`;
+  };
+  // group exams by subject (older servers send no subjects: one plain list)
+  const groups = (d.subjects && d.subjects.length)
+    ? d.subjects.map(sub => ({ name: sub.name, exams: sub.examIds.map(id => d.exams.find(e => e.id === id)).filter(Boolean) }))
+    : [{ name: '', exams: d.exams }];
+  const list = groups.map(g => {
+    const done = g.exams.filter(e => e.main).length;
+    return `<div class="subject">
+      ${groups.length > 1 || g.name ? `<h2 class="subjname">${esc(g.name)}${d.admin ? '' : `<span>${bn(done)}/${bn(g.exams.length)}</span>`}</h2>` : ''}
+      <ul class="exams">${g.exams.map(examHtml).join('')}</ul></div>`;
   }).join('');
 
   paint(`
   <section class="hello">
+    ${d.title && !d.admin ? `<p class="booktitle">${esc(d.title.name)}</p>` : ''}
     <h1>${esc(d.student.name)}</h1>
     ${d.student.institution ? `<p class="lede" style="margin-top:.15rem">${esc(d.student.institution)}</p>` : ''}
     ${d.admin ? '' : `<div class="progress"><span class="dots" aria-hidden="true">${dots}</span>
@@ -657,7 +673,7 @@ function viewDashboard() {
   </section>
   ${d.admin ? '<p class="note adminnote">এটি অ্যাডমিন প্রিভিউ বই। লুকানো পরীক্ষাগুলোও দেখা যাবে, আর কোনো নম্বর সংরক্ষিত হবে না। প্রশ্ন, ছবি ও সমাধান ঠিক আছে কি না যাচাই করতে এটি ব্যবহার করুন।</p>' : ''}
   <section class="paper has-marks">${marks}
-    ${total ? `<ul class="exams">${list}</ul>` : `<p>এখনো কোনো পরীক্ষা খোলা হয়নি। পরে আবার দেখুন।</p>`}
+    ${total ? list : `<p>এখনো কোনো পরীক্ষা খোলা হয়নি। পরে আবার দেখুন।</p>`}
   </section>
   <div class="sideline">
     <a class="btn ghost" href="#/leaderboard">শীর্ষ তালিকা</a>
