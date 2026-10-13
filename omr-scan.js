@@ -77,6 +77,15 @@
   /* ---------------- step 1: corner squares ---------------- */
 
   function detectMarkers(lum, w, h) {
+    let last = null;
+    for (const k of [0.72, 0.8, 0.64]) {
+      last = detectMarkersAt(lum, w, h, k);
+      if (last.corners) return last;
+    }
+    return last;
+  }
+
+  function detectMarkersAt(lum, w, h, factor) {
     // adaptive threshold: a pixel is "dark" if clearly darker than its neighbourhood
     const W = w + 1, S = new Float64Array(W * (h + 1));
     for (let y = 0; y < h; y++) {
@@ -91,7 +100,7 @@
         const x0 = Math.max(0, x - r), x1 = Math.min(w, x + r + 1);
         const sum = S[y1 * W + x1] - S[y0 * W + x1] - S[y1 * W + x0] + S[y0 * W + x0];
         const mean = sum / ((x1 - x0) * (y1 - y0));
-        if (lum[y * w + x] < mean * 0.72) bin[y * w + x] = 1;
+        if (lum[y * w + x] < mean * factor) bin[y * w + x] = 1;
       }
     }
 
@@ -183,43 +192,88 @@
     return pts;
   })();
 
+  // Average red value in a small disc (mm radius r) around a page point.
+  function discMean(img, H, cx, cy, pts) {
+    let s = 0;
+    for (const [ox, oy] of pts) { const [x, y] = project(H, cx + ox, cy + oy); s += sample(img, x, y, 0); }
+    return s / pts.length;
+  }
+  const SPOT = [[0, 0], [-0.4, 0], [0.4, 0], [0, -0.3], [0, 0.3]];
+  const MARK_PTS = (function () {
+    const p = [], r = L.MARK_SIZE * 0.3;
+    for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) p.push([i / 2 * r, j / 2 * r]);
+    return p;
+  })();
+
+  // How dark the printed black squares look in this photo (1 = perfect black).
+  // Pencil marks are judged relative to this, so dim or warm light doesn't matter.
+  function blackLevel(img, H) {
+    const vals = L.MARKS.map(([mx, my], i) => {
+      const [wx, wy] = L.WHITE_SPOTS[i];
+      const white = discMean(img, H, wx, wy, SPOT);
+      const black = discMean(img, H, mx, my, MARK_PTS);
+      return white > 20 ? 1 - black / white : 0;
+    }).sort((a, b) => a - b);
+    return Math.max(0.35, Math.min(1, (vals[1] + vals[2]) / 2));
+  }
+
+  // Best split point between two groups of numbers (Otsu's method).
+  function otsu(vals) {
+    if (vals.length < 8) return null;
+    const sorted = vals.slice().sort((a, b) => a - b);
+    let best = null, bestScore = -1, sumAll = sorted.reduce((a, b) => a + b, 0), sumLeft = 0;
+    for (let i = 0; i < sorted.length - 1; i++) {
+      sumLeft += sorted[i];
+      const nl = i + 1, nr = sorted.length - nl;
+      const ml = sumLeft / nl, mr = (sumAll - sumLeft) / nr;
+      const score = nl * nr * (mr - ml) * (mr - ml);
+      if (score > bestScore) { bestScore = score; best = (sorted[i] + sorted[i + 1]) / 2; }
+    }
+    return best;
+  }
+
   function readBubbles(img, H, n) {
     const g = L.layout(n);
     const half = L.ROW_PITCH / 2;
+    const scale = 1 / blackLevel(img, H);
     const answers = [], flags = [], darkness = [];
     g.questions.forEach(q => {
-      // paper white just above and below each bubble in this row
-      const whites = [];
-      q.bubbles.forEach(b => {
-        [-half, half].forEach(dy => {
-          let s = 0, c = 0;
-          for (const [ox, oy] of [[0, 0], [-0.5, 0], [0.5, 0]]) {
-            const [x, y] = project(H, b.x + ox, b.y + dy + oy);
-            s += sample(img, x, y, 0); c++;
-          }
-          whites.push(s / c);
-        });
-      });
-      whites.sort((a, b) => b - a);
-      const white = Math.max(40, whites.slice(0, 6).reduce((a, b) => a + b, 0) / 6);
-
-      const d = q.bubbles.map(b => {
-        let s = 0;
-        for (const [ox, oy] of DISC) {
-          const [x, y] = project(H, b.x + ox, b.y + oy);
-          s += sample(img, x, y, 0);
-        }
-        return Math.max(0, Math.min(1, 1 - (s / DISC.length) / white));
+      // paper white just above and below each bubble (handles shadows across the page)
+      const own = q.bubbles.map(b => Math.max(discMean(img, H, b.x, b.y - half, SPOT), discMean(img, H, b.x, b.y + half, SPOT)));
+      const rowMax = Math.max(...own);
+      const d = q.bubbles.map((b, i) => {
+        const white = Math.max(15, own[i], rowMax * 0.7);
+        const v = 1 - discMean(img, H, b.x, b.y, DISC) / white;
+        return Math.max(0, Math.min(1, v * scale));
       });
       darkness.push(d);
+    });
 
+    // Learn from this photo what "filled" and "empty" look like (two groups),
+    // so noisy, dim or low-contrast photos get fair thresholds.
+    const rels = [];
+    darkness.forEach(d => { const m = Math.min(...d); d.forEach(v => rels.push(v - m)); });
+    let strongT = 0.24, weakT = 0.12;
+    const split = otsu(rels);
+    if (split) {
+      const empty = rels.filter(v => v <= split), filled = rels.filter(v => v > split);
+      const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+      const me = mean(empty), mf = mean(filled);
+      const sd = Math.sqrt(mean(empty.map(v => (v - me) * (v - me))));
+      if (filled.length >= 1 && mf - me > 0.2) {
+        strongT = Math.min(0.4, Math.max(0.15, me + 0.45 * (mf - me)));
+        weakT = Math.min(strongT - 0.04, Math.max(0.08, me + 0.2 * (mf - me), me + 3.5 * sd));
+      }
+    }
+
+    const K = ['A', 'B', 'C', 'D'];
+    darkness.forEach(d => {
       const base = Math.min(...d);
       const rel = d.map(v => v - base);
       const strong = [], weak = [];
-      rel.forEach((v, i) => { if (v > 0.22) strong.push(i); else if (v > 0.1) weak.push(i); });
-      const K = ['A', 'B', 'C', 'D'];
+      rel.forEach((v, i) => { if (v > strongT) strong.push(i); else if (v > weakT) weak.push(i); });
       let ans = '', flag = '';
-      if (base > 0.45) { flag = 'multiple'; }
+      if (base > 0.5) { flag = 'multiple'; }
       else if (strong.length === 1 && !weak.length) { ans = K[strong[0]]; }
       else if (strong.length === 1) { ans = K[strong[0]]; flag = 'check'; }
       else if (strong.length > 1) { flag = 'multiple'; }
@@ -230,11 +284,26 @@
     return { answers: answers, flags: flags, darkness: darkness };
   }
 
+  // Combine several readings of the same sheet (from a few camera frames).
+  function vote(results) {
+    if (results.length === 1) return results[0];
+    const out = Object.assign({}, results[0], { answers: [], flags: [] });
+    results[0].answers.forEach((_, i) => {
+      const count = {};
+      results.forEach(r => { const k = r.answers[i] + '|' + r.flags[i]; count[k] = (count[k] || 0) + 1; });
+      const [best, c] = Object.entries(count).sort((a, b) => b[1] - a[1])[0];
+      const [a, f] = best.split('|');
+      out.answers.push(a);
+      out.flags.push(c === results.length ? f : (f || 'unclear'));
+    });
+    return out;
+  }
+
   /* ---------------- QR ---------------- */
 
   function decodeQr(img, H) {
     if (typeof global.jsQR !== 'function') return null;
-    const ppm = 8, x0 = L.QR.x - L.QR.quiet, y0 = L.QR.y - L.QR.quiet, mm = L.QR.size + 2 * L.QR.quiet;
+    const ppm = 10, x0 = L.QR.x - L.QR.quiet, y0 = L.QR.y - L.QR.quiet, mm = L.QR.size + 2 * L.QR.quiet;
     const size = Math.round(mm * ppm);
     const out = new Uint8ClampedArray(size * size * 4);
     for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
@@ -300,12 +369,12 @@
     const full = source.getContext('2d').getImageData(0, 0, W, Hh);
     const H = homography(L.MARKS, o.dst.map(([x, y]) => [x / s, y / s]));
     if (!H) return { ok: false, reason: 'markers' };
-    const qrText = decodeQr(full, H);
-    const qr = L.parseQr(qrText);
+    const qr = L.parseQr(decodeQr(full, H));
+    if (qr && qr.version !== L.VERSION) return { ok: false, reason: 'oldsheet' };
     const count = qr ? qr.n : n;
     const res = readBubbles(full, H, count);
     res.ok = true; res.qr = qr; res.n = count; res.corners = det.corners; res.scale = s;
-    res.preview = preview(full, H, count, res);
+    res.makePreview = r => preview(full, H, count, r || res);
     return res;
   }
 
@@ -341,12 +410,34 @@
   .omrscan video, .omrscan canvas.ov { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
   .omrscan .hint { margin: 0; padding: .7rem 1rem; text-align: center; font-size: 1rem; line-height: 1.45; background: rgba(0,0,0,.55); min-height: 3.6rem; }
   .omrscan .hint.warn { color: #ffd166; }
-  .omrscan .bar { display: flex; gap: .5rem; justify-content: center; flex-wrap: wrap; padding: .7rem 1rem 1rem; }
+  .omrscan .bar { display: flex; gap: .5rem; justify-content: center; flex-wrap: wrap; padding: .6rem 1rem 0; }
+  .omrscan .bar:last-child { padding-bottom: 1rem; }
   .omrscan .bar button, .omrscan .bar label { font: inherit; font-weight: 600; min-height: 2.75rem; padding: .5rem 1rem; border-radius: 6px;
-    border: 1.5px solid rgba(255,255,255,.5); background: transparent; color: #fff; cursor: pointer; display: inline-flex; align-items: center; }
-  .omrscan .bar .shoot { background: #fff; color: #111; border-color: #fff; }
+    border: 1.5px solid rgba(255,255,255,.5); background: transparent; color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  .omrscan .bar .primary { background: #fff; color: #111; border-color: #fff; }
+  .omrscan .bar .torch[aria-pressed="true"] { background: #ffd166; color: #111; border-color: #ffd166; }
   .omrscan input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
   .omrscan :focus-visible { outline: 3px solid #7aa7ff; outline-offset: 2px; }`;
+
+  const MSG = {
+    start: 'ক্যামেরা চালু হচ্ছে…',
+    find: 'পুরো OMR পাতাটি ফ্রেমে আনুন। চার কোণের কালো বর্গ যেন দেখা যায়।',
+    hold: 'পাতা পাওয়া গেছে। ফোন স্থির রাখুন…',
+    reading: 'পড়া হচ্ছে…',
+    markers: 'চার কোণের কালো বর্গ খুঁজে পাওয়া যায়নি। পুরো পাতাটি ফ্রেমে আনুন, পাতার ওপর ফোনের ছায়া যেন না পড়ে।',
+    orientation: 'পাতাটি চেনা যায়নি। পুরো পাতা ফ্রেমে এনে আবার চেষ্টা করুন।',
+    oldsheet: 'এটি পুরনো নকশার OMR শিট। বইয়ের সাথে দেওয়া নতুন শিট ব্যবহার করুন।',
+    noLive: 'এই ব্রাউজারে সরাসরি ক্যামেরা চালু হচ্ছে না। নিচের "ক্যামেরা অ্যাপে ছবি তুলুন" চাপুন।',
+    denied: 'ক্যামেরা চালু করা যায়নি। ব্রাউজারকে ক্যামেরার অনুমতি দিন, অথবা নিচের "ক্যামেরা অ্যাপে ছবি তুলুন" চাপুন।',
+  };
+
+  function canvasFrom(source, w, h, maxSide) {
+    const k = Math.min(1, (maxSide || 4000) / Math.max(w, h));
+    const c = document.createElement('canvas');
+    c.width = Math.round(w * k); c.height = Math.round(h * k);
+    c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
+    return c;
+  }
 
   // opts: { n, examId, onResult(res), onClose() }
   function open(opts) {
@@ -359,17 +450,24 @@
     el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'OMR স্ক্যান');
     el.innerHTML = `
       <div class="stage"><video playsinline muted autoplay></video><canvas class="ov"></canvas></div>
-      <p class="hint" aria-live="polite">ক্যামেরা চালু হচ্ছে…</p>
+      <p class="hint" aria-live="polite"></p>
       <div class="bar">
         <button type="button" class="close">বন্ধ করুন</button>
-        <button type="button" class="shoot">ছবি তুলুন</button>
-        <label>ফোনের ক্যামেরা বা গ্যালারি<input type="file" accept="image/*"></label>
+        <button type="button" class="torch" aria-pressed="false" hidden>টর্চ</button>
+        <button type="button" class="shoot primary" hidden>এখনই পড়ুন</button>
+      </div>
+      <div class="bar">
+        <label class="camapp">ক্যামেরা অ্যাপে ছবি তুলুন<input type="file" accept="image/*" capture="environment"></label>
+        <label>গ্যালারি থেকে<input type="file" accept="image/*"></label>
       </div>`;
     document.body.appendChild(el);
     document.body.style.overflow = 'hidden';
     const video = el.querySelector('video'), ov = el.querySelector('canvas.ov'), hint = el.querySelector('.hint');
+    const shootBtn = el.querySelector('.shoot'), torchBtn = el.querySelector('.torch');
     const say = (t, warn) => { hint.textContent = t; hint.classList.toggle('warn', !!warn); };
-    let stream = null, timer = null, closed = false, busy = false, prev = null, stable = 0, holdUntil = 0;
+    say(MSG.start);
+    let stream = null, track = null, imageCapture = null, timer = null, closed = false, busy = false;
+    let prev = null, stable = 0, holdUntil = 0;
 
     function close() {
       if (closed) return; closed = true;
@@ -398,25 +496,49 @@
 
     // Returns an error message, or null if the result was accepted.
     function finish(res) {
-      if (!res.ok) {
-        return res.reason === 'orientation'
-          ? 'পাতাটি চেনা যায়নি। পুরো পাতা ফ্রেমে এনে আবার চেষ্টা করুন।'
-          : 'চার কোণের কালো বর্গ খুঁজে পাওয়া যায়নি। পুরো পাতাটি ফ্রেমে আনুন, আলো যেন পর্যাপ্ত থাকে।';
-      }
+      if (!res.ok) return MSG[res.reason] || MSG.markers;
       if (res.qr && res.qr.examId !== String(opts.examId).toUpperCase())
         return `এটি অন্য পরীক্ষার OMR শিট (${res.qr.examId})। সঠিক পরীক্ষার পাতা স্ক্যান করুন।`;
       if (res.n !== opts.n)
         return 'এই OMR শিটের প্রশ্নসংখ্যা পরীক্ষার সাথে মেলেনি। প্রকাশকের সাথে যোগাযোগ করুন।';
+      res.preview = res.makePreview ? res.makePreview(res) : null;
       close();
       opts.onResult(res);
       return null;
     }
+    function fail(msg) { say(msg, true); holdUntil = Date.now() + 2500; }
 
-    function analyzeFrame() {
-      const c = document.createElement('canvas');
-      c.width = video.videoWidth; c.height = video.videoHeight;
-      c.getContext('2d').drawImage(video, 0, 0);
-      return analyze(c, opts.n);
+    // Best quality: a real photo from the camera sensor (Chrome on Android).
+    // Otherwise read three video frames and keep the answers they agree on.
+    async function captureAndRead() {
+      busy = true; say(MSG.reading);
+      await loadJsQR();
+      let res = null;
+      if (imageCapture) {
+        try {
+          const blob = await imageCapture.takePhoto();
+          const bmp = await createImageBitmap(blob);
+          res = analyze(canvasFrom(bmp, bmp.width, bmp.height, 3000), opts.n);
+          if (!res.ok) res = null;
+        } catch (e) { res = null; }
+      }
+      if (!res) {
+        const reads = [];
+        for (let i = 0; i < 3 && !closed; i++) {
+          const r = analyze(canvasFrom(video, video.videoWidth, video.videoHeight), opts.n);
+          if (r.ok) reads.push(r); else if (!reads.length && i === 2) res = r;
+          await new Promise(ok => setTimeout(ok, 120));
+        }
+        if (reads.length) {
+          const v = vote(reads);
+          v.makePreview = r => reads[0].makePreview(r);
+          res = v;
+        }
+      }
+      busy = false; stable = 0;
+      if (closed) return;
+      const err = finish(res || { ok: false, reason: 'markers' });
+      if (err) fail(err);
     }
 
     function loop() {
@@ -424,70 +546,70 @@
       if (!busy && video.readyState >= 2 && video.videoWidth) {
         const det = quickDetect(video);
         drawOverlay(det);
-        if (Date.now() < holdUntil) { /* keep showing the last message */ }
-        else if (!det.corners) { stable = 0; say('পুরো OMR পাতাটি ফ্রেমে আনুন। চার কোণের কালো বর্গ যেন দেখা যায়।'); }
-        else {
-          const moved = prev ? Math.max(...det.corners.map((p, i) => Math.hypot(p[0] - prev[i][0], p[1] - prev[i][1]))) / det.w : 1;
-          stable = moved < 0.02 ? stable + 1 : 0;
-          say('পাতা পাওয়া গেছে। ফোন স্থির রাখুন…');
-          if (stable >= 2) {
-            busy = true; say('পড়া হচ্ছে…');
-            const err = finish(analyzeFrame());
-            busy = false; stable = 0;
-            if (err) { say(err, true); holdUntil = Date.now() + 2500; }
+        if (Date.now() >= holdUntil) {
+          if (!det.corners) { stable = 0; say(MSG.find); }
+          else {
+            const moved = prev ? Math.max(...det.corners.map((p, i) => Math.hypot(p[0] - prev[i][0], p[1] - prev[i][1]))) / det.w : 1;
+            stable = moved < 0.02 ? stable + 1 : 0;
+            say(MSG.hold);
+            if (stable >= 3) { captureAndRead(); }
           }
         }
         prev = det.corners;
       }
-      timer = setTimeout(loop, 220);
+      timer = setTimeout(loop, 200);
     }
 
-    el.querySelector('.shoot').onclick = () => {
-      if (!video.videoWidth) return;
-      say('পড়া হচ্ছে…');
-      setTimeout(() => { const err = finish(analyzeFrame()); if (err) { say(err, true); holdUntil = Date.now() + 2500; } }, 30);
+    shootBtn.onclick = () => { if (!busy && video.videoWidth) captureAndRead(); };
+
+    torchBtn.onclick = async () => {
+      const on = torchBtn.getAttribute('aria-pressed') !== 'true';
+      try { await track.applyConstraints({ advanced: [{ torch: on }] }); torchBtn.setAttribute('aria-pressed', String(on)); } catch (e) {}
     };
 
-    el.querySelector('input[type=file]').onchange = e => {
-      const f = e.target.files && e.target.files[0];
-      if (!f) return;
-      say('ছবি পড়া হচ্ছে…');
-      const url = URL.createObjectURL(f);
-      const im = new Image();
-      im.onload = () => {
-        const k = Math.min(1, 2400 / Math.max(im.naturalWidth, im.naturalHeight));
-        const c = document.createElement('canvas');
-        c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
-        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
-        loadJsQR().then(() => { const err = finish(analyze(c, opts.n)); if (err) say(err, true); });
+    el.querySelectorAll('input[type=file]').forEach(inp => {
+      inp.onchange = e => {
+        const f = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!f) return;
+        say('ছবি পড়া হচ্ছে…');
+        const url = URL.createObjectURL(f);
+        const im = new Image();
+        im.onload = () => {
+          const c = canvasFrom(im, im.naturalWidth, im.naturalHeight, 3000);
+          URL.revokeObjectURL(url);
+          loadJsQR().then(() => { const err = finish(analyze(c, opts.n)); if (err) say(err, true); });
+        };
+        im.onerror = () => say('ছবিটি খোলা যায়নি। আবার চেষ্টা করুন।', true);
+        im.src = url;
       };
-      im.onerror = () => say('ছবিটি খোলা যায়নি। আবার চেষ্টা করুন।', true);
-      im.src = url;
-      e.target.value = '';
-    };
+    });
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      say('এই ব্রাউজারে সরাসরি ক্যামেরা চালু করা যাচ্ছে না। "ফোনের ক্যামেরা বা গ্যালারি" চেপে OMR পাতার ছবি দিন। Chrome-এ খুললে সরাসরি স্ক্যান করা যাবে।', true);
-      el.querySelector('.shoot').hidden = true;
+      say(MSG.noLive, true);
       return { close: close };
     }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
-      .then(s => {
-        if (closed) { s.getTracks().forEach(t => t.stop()); return; }
-        stream = s; video.srcObject = s;
-        return video.play().catch(() => {});
-      })
-      .then(() => { if (!closed) loop(); })
-      .catch(() => {
-        say('ক্যামেরা চালু করা যায়নি। ব্রাউজারকে ক্যামেরা ব্যবহারের অনুমতি দিন, অথবা "ফোনের ক্যামেরা বা গ্যালারি" চেপে OMR পাতার ছবি দিন।', true);
-        el.querySelector('.shoot').hidden = true;
-      });
+    navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1440 } },
+    }).then(async s => {
+      if (closed) { s.getTracks().forEach(t => t.stop()); return; }
+      stream = s; track = s.getVideoTracks()[0];
+      video.srcObject = s;
+      await video.play().catch(() => {});
+      const caps = (track.getCapabilities && track.getCapabilities()) || {};
+      // keep the picture sharp at close range
+      if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+      if (caps.torch) torchBtn.hidden = false;
+      if (typeof global.ImageCapture === 'function') { try { imageCapture = new global.ImageCapture(track); } catch (e) { imageCapture = null; } }
+      shootBtn.hidden = false;
+      loop();
+    }).catch(() => say(MSG.denied, true));
     return { close: close };
   }
 
   global.OMRScanner = {
-    open: open, analyze: analyze, FLAG_TEXT: FLAG_TEXT, loadJsQR: loadJsQR,
+    open: open, analyze: analyze, vote: vote, FLAG_TEXT: FLAG_TEXT, loadJsQR: loadJsQR,
     _internals: { homography: homography, project: project, detectMarkers: detectMarkers, readBubbles: readBubbles },
   };
 })(window);

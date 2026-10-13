@@ -4,15 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
-<title>MCQ Portal</title>
+<title>অনুশীলন পোর্টাল</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
-<script defer src="omr-layout.js"></script>
-<script defer src="omr-scan.js"></script>
+<script defer src="omr-layout.js?v=a5-3"></script>
+<script defer src="omr-scan.js?v=a5-3"></script>
 
 <script>
 /* =========================================================
@@ -20,9 +20,9 @@
    ========================================================= */
 const CONFIG = {
   // Paste the Web app URL from Apps Script (Deploy > Manage deployments).
-  API_URL: 'https://script.google.com/macros/s/AKfycbwgUvgV8Wh1H0PkRvEATrFAVJn5Fz7TQyJHB-alTYA4WkttWU2Yl96C4mz3z_ftyMdh/exec',
+  API_URL: 'PASTE_YOUR_WEB_APP_URL_HERE',
   // Name shown at the top of every page.
-  SITE_NAME: 'Marathon MCQ by Rahat Bhai',
+  SITE_NAME: 'পদার্থবিজ্ঞান অনুশীলন বই',
   // Shown to students who forget their PIN.
   SUPPORT_CONTACT: 'প্রকাশকের হেল্পলাইন: 01XXXXXXXXX',
   // Folder (on this website) where question images live. A sheet cell can then
@@ -381,6 +381,7 @@ const store = {
 let session = store.get('omr_session') || {};
 let dash = null;        // dashboard data from the server
 let lastResult = null;  // result shown on #/result
+let cameFromOmrQr = false; // opened by scanning the QR printed on an OMR sheet
 function saveSession() { store.set('omr_session', session); }
 
 /* ---------- server ---------- */
@@ -478,6 +479,7 @@ function viewEntry(error) {
       <h1>বইয়ের আইডি দিয়ে প্রবেশ করুন</h1>
       <p class="lede">বইয়ের প্রথম পাতার QR কোড ফোনের ক্যামেরা দিয়ে স্ক্যান করুন। স্ক্যান না হলে QR কোডের নিচে লেখা আইডিটি এখানে লিখুন।</p>
     </div>
+    ${/^#\/exam\//.test(location.hash) ? '<p class="note">পরীক্ষাটি খুলতে আগে একবার বইয়ের আইডি দিয়ে প্রবেশ করুন। এরপর থেকে OMR-এর QR স্ক্যান করলে সরাসরি পরীক্ষার পাতা খুলবে।</p>' : ''}
     ${errBox(error)}
     <form id="f" class="stack" novalidate>
       <label class="field"><span>বইয়ের আইডি</span>
@@ -557,7 +559,7 @@ function viewRegister(error, keep = {}) {
     try {
       const r = await api('register', Object.assign({ bookId: session.bookId }, data));
       session.pin = data.pin; saveSession();
-      dash = r; location.hash = '#/'; route();
+      dash = r; route();
     } catch (err) {
       if (err.code === 'ALREADY_REGISTERED') return viewPin(msg(err));
       viewRegister(msg(err), data);
@@ -618,7 +620,7 @@ function viewSetPin(error) {
     if (pin !== enDigits(f.pin2.value.trim())) return viewSetPin('দুটি পিন মেলেনি। আবার লিখুন।');
     try {
       const r = await api('setPin', { bookId: session.bookId, phone: enDigits(f.phone.value.trim()), pin });
-      session.pin = pin; saveSession(); dash = r; location.hash = '#/'; route();
+      session.pin = pin; saveSession(); dash = r; route();
     } catch (err) { viewSetPin(msg(err)); }
   };
 }
@@ -678,7 +680,13 @@ function logout() {
 /* ---------- OMR answer sheet ---------- */
 function viewSheet(examId) {
   const exam = dash.exams.find(e => e.id === examId);
-  if (!exam) { location.hash = '#/'; return; }
+  if (!exam) {
+    paint(`<section class="paper stack">${marks}
+      <h1>পরীক্ষাটি পাওয়া যায়নি</h1>
+      <p>এই OMR শিটের পরীক্ষা (${esc(examId)}) এখনো খোলা হয়নি, অথবা কোডটি ভুল। পরীক্ষা খোলা হলে আবার QR স্ক্যান করুন।</p>
+      <div class="actions"><a class="btn" href="#/">পরীক্ষার তালিকা দেখুন</a></div></section>`, { noFocus: true });
+    return;
+  }
   const n = exam.numQuestions;
   const isMain = !exam.main && !dash.admin;
   const draftKey = `omr_draft_${session.bookId}_${exam.id}`;
@@ -702,6 +710,7 @@ function viewSheet(examId) {
       <h1>${esc(exam.name)}</h1>
       <span class="mode ${isMain ? 'main' : 'practice'}">${isMain ? 'মূল পরীক্ষা' : dash.admin ? 'প্রিভিউ: নম্বর সংরক্ষিত হবে না' : 'অনুশীলন: নম্বর সংরক্ষিত হবে না'}</span>
     </div>
+    ${cameFromOmrQr ? '<p class="note" style="margin-top:1rem">OMR শিটের QR থেকে এই পরীক্ষা খোলা হয়েছে। এখন নিচের বোতাম চেপে পুরো OMR পাতা স্ক্যান করুন।</p>' : ''}
     <div class="scanbox">
       <button class="btn" id="scan" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M7 12h10"/></svg>ক্যামেরা দিয়ে OMR স্ক্যান করুন</button>
       <span>অথবা নিচের বৃত্তগুলোতে নিজে চাপুন</span>
@@ -727,7 +736,7 @@ function viewSheet(examId) {
   };
 
   $('#scan').onclick = () => {
-    if (!window.OMRScanner) { alert('স্ক্যানার লোড হয়নি। পাতাটি রিফ্রেশ করে আবার চেষ্টা করুন।'); return; }
+    if (!window.OMRScanner || !window.OMR_LAYOUT || !window.OMR_LAYOUT.WHITE_SPOTS) { alert('স্ক্যানার লোড হয়নি বা পুরনো সংস্করণ চলছে। পাতাটি রিফ্রেশ করে আবার চেষ্টা করুন।'); return; }
     OMRScanner.open({ n, examId: exam.id, onResult: applyScan });
   };
   function applyScan(res) {
@@ -756,6 +765,8 @@ function viewSheet(examId) {
     const firstFlag = document.querySelector('#omr .omr-row.flag');
     (firstFlag || box).scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
+
+  if (cameFromOmrQr) { cameFromOmrQr = false; $('#scan').focus(); }
 
   const updateCount = () => {
     const done = answers.filter(Boolean).length;
@@ -969,7 +980,13 @@ window.addEventListener('hashchange', route);
   if (fromQr) {
     if (fromQr !== session.bookId) session = { bookId: fromQr };
     saveSession();
-    history.replaceState(null, '', location.pathname + location.hash); // hide the ID from the address bar
+  }
+  // The QR on an OMR sheet links to ?e=EXAM-ID&q=20 : open that exam directly.
+  const examFromQr = (p.get('e') || p.get('exam') || '').trim().toUpperCase().replace(/[^A-Z0-9_.-]/g, '');
+  if (examFromQr) cameFromOmrQr = true;
+  if (fromQr || examFromQr || p.toString()) {
+    const hash = examFromQr ? '#/exam/' + encodeURIComponent(examFromQr) : location.hash;
+    history.replaceState(null, '', location.pathname + hash); // keep IDs out of the address bar
   }
   setChrome();
   route();
