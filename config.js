@@ -6,7 +6,7 @@
    ========================================================= */
 window.PORTAL_CONFIG = {
   // Paste the Web app URL from Apps Script (Deploy > Manage deployments). It ends with /exec
-  API_URL: 'PASTE_YOUR_WEB_APP_URL_HERE',
+  API_URL: 'https://script.google.com/macros/s/AKfycbwgUvgV8Wh1H0PkRvEATrFAVJn5Fz7TQyJHB-alTYA4WkttWU2Yl96C4mz3z_ftyMdh/exec',
   // Name shown at the top of every page and on printed papers.
   SITE_NAME: 'পদার্থবিজ্ঞান অনুশীলন বই',
   // Shown to students who forget their PIN.
