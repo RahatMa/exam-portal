@@ -8,6 +8,7 @@ This guide assumes no programming experience. Follow the parts in order. The who
 |---|---|---|
 | `config.js` | **Your settings** (backend link, book name, helpline). The only file you edit. | GitHub |
 | `index.html` | The student portal (the website). | GitHub |
+| `admin.html` | The admin portal: books, exams, questions, results, book IDs, students, settings, admins. | GitHub |
 | `print.html` | A tool for you that prints question papers, answer keys, solutions and OMR sheets. | GitHub |
 | `omr-draw.js` | Draws the OMR sheet; used by `omr-sheet.html` and `print.html`. | GitHub |
 | `generator.html` | A tool for you that turns book IDs into printable QR codes. | GitHub |
@@ -20,6 +21,38 @@ This guide assumes no programming experience. Follow the parts in order. The who
 
 ---
 
+## Upgrading to the admin portal (version 2)
+
+If you already set up the portal with the earlier version, do this once. Nothing is lost: books, questions, students and results are kept.
+
+1. In Apps Script, replace everything with the new `Code.gs`, click **Save**.
+2. Reload the Google Sheet and click **OMR Portal > 1. Set up / upgrade sheets**. It adds new tabs (**Titles, Subjects, Admins, Log**) and new columns, puts your existing exams into one book called "আমার বই" (rename it in the admin portal), and shows an **admin setup code**.
+3. **Deploy > Manage deployments > ✏️ > Version: New version > Deploy.**
+4. Upload `admin.html` and the new `index.html` to GitHub.
+5. Open `your-site/admin.html`, enter the setup code, and create your super admin account. The code works only once; you can see it again with **OMR Portal > Show admin setup code** until the first admin exists.
+
+### What's in the admin portal
+
+| Page | Who | What it does |
+|---|---|---|
+| **Books & exams** | All admins | Add books (what you publish), subjects and exams. Per-exam marking, open/hidden. |
+| **Questions** | All admins | Pick an exam, then add, edit, reorder or delete questions. The editor has buttons for common math (fraction, power, √, θ…) and a live preview of exactly what students see. |
+| **Results** | All admins (phone numbers: super admin only) | **By exam:** students, average, highest, lowest, a chart of how marks are spread, and for every question the % who got it right and how many picked each option. **Book ranking:** the full ranking for a book. **One student:** every exam they took, with their answer and the correct answer for each question. Everything can be downloaded as Excel. |
+| **Print papers** | All admins | Opens the printing tool (question papers, answer keys, solutions, OMR sheets) without a separate sign-in. |
+| **OMR sheet maker** | All admins | Single OMR sheets for your book designer. |
+| **Book IDs & QR** | Super admin | Make IDs for a print run, then print QR labels or download Excel/CSV for your printer. Browse all IDs by book or batch; block or unblock a copy. |
+| **Students** | Super admin | Search by name, phone, institution or book ID; open their results; reset a forgotten PIN; block. |
+| **Settings** | Super admin | Website address, default marking, show/hide the top list and its size, recalculate all scores. |
+| **Admins / Activity log / My account** | As before | Manage admins, see who changed what, change your password. |
+
+**Questions after students have submitted:** once an exam has student results, you can still fix the wording or the correct answer (scores for that exam are recalculated automatically), but you can't add, remove or reorder questions, because students' saved answers are matched by question number.
+
+**Admin preview books:** to try exams as a student would (including hidden ones), set a book ID's status to admin preview in the Books tab (`ADMIN`). Its submissions are never saved or ranked.
+
+Word upload and picture upload are in the next update. Until then, add pictures by uploading them to the `images` folder on GitHub and typing the file name in the question editor.
+
+---
+
 ## Part 1: Set up the Google Sheet (the backend)
 
 Use a Google account that belongs to your business, because this account will own all student data.
@@ -29,12 +62,12 @@ Use a Google account that belongs to your business, because this account will ow
 3. Delete everything in the editor. Open `Code.gs` from this folder in Notepad (or any text editor), copy **all** of it, and paste it in.
 4. Click the **Save** icon (💾). Rename the project at the top-left to `OMR Portal`.
 5. Go back to the spreadsheet tab and **reload the page**. After a few seconds a new menu called **OMR Portal** appears next to Help.
-6. Click **OMR Portal > 1. Set up sheets (first time)**.
+6. Click **OMR Portal > 1. Set up / upgrade sheets**.
 7. Google asks for permission:
    - Click **Continue** and choose your account.
    - You'll see "Google hasn't verified this app". This is normal for your own script. Click **Advanced > Go to OMR Portal (unsafe)**, then **Allow**.
-   - Run **OMR Portal > 1. Set up sheets** again if nothing happened the first time.
-8. You now have these tabs: **Books, Exams, Questions, Attempts, Settings**. The sample physics exam (PHY-01, 20 questions) and three test books (`DEMO-0001`, `DEMO-0002`, `DEMO-0003`) are already filled in.
+   - Run **OMR Portal > 1. Set up / upgrade sheets** again if nothing happened the first time.
+8. You now have these tabs: **Titles, Subjects, Exams, Questions, Books, Attempts, Admins, Log, Settings**. A sample book with the physics exam (PHY-01, 20 questions) and three test copies (`DEMO-0001`, `DEMO-0002`, `DEMO-0003`) are already filled in. A message shows your **admin setup code**; you'll use it in `admin.html` to create your super admin.
 
 ### Publish the backend as a web app
 
@@ -311,6 +344,6 @@ Each paper shows the book name, exam name, exam code, number of questions, full 
 | "Portal setup is not finished: paste the Apps Script Web app URL…" | `API_URL` in `config.js` is not set, or `config.js` isn't uploaded. The message shows what the page currently sees. See Part 2. |
 | "সার্ভারের সাথে সংযোগ হয়নি" for everyone | Check the deployment has **Who has access: Anyone**, and that the URL ends with `/exec`. |
 | You changed `Code.gs` but nothing changed | Deploy a **New version** (see the note at the end of Part 1). |
-| "Server setup is not finished…" | Run **OMR Portal > 1. Set up sheets**. Don't rename the tabs or the header row. |
+| "Server setup is not finished…" | Run **OMR Portal > 1. Set up / upgrade sheets**. Don't rename the tabs or the header row. |
 | The website doesn't show your latest edit | GitHub takes about a minute. Then refresh the page (on phone, close and reopen the tab). |
 | Math shows as `\(...\)` text | Check each `\(` has a matching `\)`, and each `\[` has a matching `\]`. |

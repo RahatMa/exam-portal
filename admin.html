@@ -8,6 +8,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="config.js?v=1"></script>
 <style>
 :root {
@@ -103,7 +107,7 @@ code { font-size: .88em; background: var(--desk); padding: .05rem .35rem; border
 .center { min-height: 100vh; display: grid; place-items: center; padding: 1.5rem; }
 .center .card { width: min(26rem, 100%); padding: 1.6rem; }
 
-dialog { border: 0; border-radius: 10px; padding: 1.3rem; width: min(32rem, calc(100vw - 2rem)); background: var(--paper); color: var(--text); box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+dialog { border: 0; border-radius: 10px; padding: 1.3rem; width: min(32rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); background: var(--paper); color: var(--text); box-shadow: 0 10px 40px rgba(0,0,0,.25); }
 dialog::backdrop { background: rgba(20,22,26,.45); }
 dialog h2 { margin-bottom: .9rem; }
 dialog .actions { display: flex; gap: .5rem; justify-content: flex-end; flex-wrap: wrap; margin-top: 1.2rem; }
@@ -114,6 +118,60 @@ dialog .actions .left { margin-right: auto; }
 .busy { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, var(--ink), transparent); background-size: 50% 100%; animation: slide 1s linear infinite; z-index: 70; }
 @keyframes slide { from { background-position: -50% 0; } to { background-position: 150% 0; } }
 @media (prefers-reduced-motion: reduce) { .busy { animation: none; background: var(--ink); } }
+
+/* questions */
+.qcard { border-top: 1px solid var(--line); padding: .9rem 0; display: grid; grid-template-columns: 2.2rem 1fr auto; gap: .3rem .8rem; }
+.qcard:first-child { border-top: 0; }
+.qnum { font-weight: 700; color: var(--ink-text); }
+.qbody .qt { overflow-wrap: anywhere; }
+.qopts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .15rem 1rem; margin-top: .35rem; font-size: .93rem; }
+.qopts .right { color: var(--ok); font-weight: 600; }
+.qtools { display: flex; gap: .3rem; align-items: start; flex-wrap: wrap; justify-content: flex-end; }
+.qimg { display: block; max-width: 100%; max-height: 14rem; margin: .4rem 0; background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: .2rem; }
+.imgmiss { color: var(--bad); font-size: .85rem; }
+dialog.wide { width: min(68rem, calc(100vw - 2rem)); }
+.editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.2rem; }
+@media (max-width: 860px) { .editor { grid-template-columns: 1fr; } }
+textarea.t { width: 100%; padding: .5rem .65rem; border: 1.5px solid var(--line); border-radius: 6px; background: var(--paper); font: inherit; resize: vertical; min-height: 4.5rem; }
+textarea.t:focus { border-color: var(--ink); outline: none; box-shadow: 0 0 0 3px var(--ink-soft); }
+.mathbar { display: flex; gap: .25rem; flex-wrap: wrap; margin: .2rem 0 .5rem; }
+.mathbar button { border: 1px solid var(--line); background: var(--desk); border-radius: 5px; padding: .1rem .5rem; cursor: pointer; font-size: .85rem; }
+.ansrow { display: flex; gap: .4rem; }
+.ansrow label { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 50%; border: 1.6px solid var(--ink); color: var(--ink-text); font-weight: 700; cursor: pointer; }
+.ansrow input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.ansrow input:checked + span { color: var(--on-graphite); }
+.ansrow label:has(input:checked) { background: var(--graphite); border-color: var(--graphite); }
+.ansrow label:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
+.editor > div:last-child .preview { position: sticky; top: 0; }
+.preview { border: 1px dashed var(--line); border-radius: 8px; padding: .9rem 1rem; background: var(--desk); }
+.preview .lbl { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; margin-bottom: .4rem; }
+.preview .po { display: flex; gap: .5rem; padding: .2rem .4rem; border-radius: 5px; }
+.preview .po.right { background: var(--ok-soft); }
+.preview .sol { margin-top: .6rem; padding-top: .6rem; border-top: 1px dashed var(--line); }
+.katex-display { overflow-x: auto; overflow-y: hidden; }
+
+/* results */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: .7rem; }
+.stat { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: .7rem .9rem; }
+.stat b { display: block; font-size: 1.5rem; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.stat span { color: var(--muted); font-size: .82rem; }
+.bars { display: grid; grid-template-columns: repeat(10, 1fr); gap: .3rem; align-items: end; height: 7rem; }
+.bars div { background: var(--ink); border-radius: 3px 3px 0 0; min-height: 2px; position: relative; }
+.bars div span { position: absolute; top: -1.2rem; left: 0; right: 0; text-align: center; font-size: .72rem; color: var(--muted); }
+.barlbl { display: grid; grid-template-columns: repeat(10, 1fr); gap: .3rem; font-size: .7rem; color: var(--muted); text-align: center; margin-top: .25rem; }
+.pct { display: flex; align-items: center; gap: .5rem; min-width: 8rem; }
+.pct i { display: block; height: .5rem; border-radius: 3px; background: var(--ok); }
+.pct.low i { background: var(--bad); }
+.tabs { display: flex; gap: .3rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.tabs a { padding: .35rem .9rem; border-radius: 999px; border: 1.5px solid var(--line); text-decoration: none; color: var(--text); font-weight: 600; background: var(--paper); }
+.tabs a[aria-current="page"] { background: var(--graphite); color: var(--on-graphite); border-color: var(--graphite); }
+.ans-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.6rem, 1fr)); gap: .3rem; }
+.ans-grid span { border-radius: 5px; padding: .2rem .4rem; font-size: .85rem; text-align: center; }
+.ans-grid .correct { background: var(--ok-soft); color: var(--ok); }
+.ans-grid .wrong { background: var(--bad-soft); color: var(--bad); }
+.ans-grid .blank { border: 1px dashed var(--line); color: var(--muted); }
+td a { color: var(--ink-text); font-weight: 600; }
+.ids { font-family: ui-monospace, monospace; font-size: .85rem; max-height: 10rem; overflow: auto; background: var(--desk); padding: .5rem .7rem; border-radius: 6px; columns: 4 8rem; }
 </style>
 </head>
 <body>
@@ -271,6 +329,13 @@ async function signOut() {
 /* ---------- shell ---------- */
 const NAV = [
   { id: '', label: 'Books & exams' },
+  { id: 'questions', label: 'Questions' },
+  { id: 'results', label: 'Results' },
+  { id: 'print', label: 'Print papers', href: 'print.html' },
+  { id: 'omr', label: 'OMR sheet maker', href: 'omr-sheet.html' },
+  { id: 'bookids', label: 'Book IDs & QR', super: true },
+  { id: 'students', label: 'Students', super: true },
+  { id: 'settings', label: 'Settings', super: true },
   { id: 'admins', label: 'Admins', super: true },
   { id: 'log', label: 'Activity log', super: true },
   { id: 'account', label: 'My account' },
@@ -279,7 +344,7 @@ function shell(page, html) {
   $('#root').innerHTML = `<div class="shell">
     <nav class="side" aria-label="Admin">
       <div class="brand"><small>Admin</small>${esc(CFG.SITE_NAME)}</div>
-      ${NAV.filter(n => !n.super || me.role === 'super').map(n => `<a href="#/${n.id}" ${n.id === page ? 'aria-current="page"' : ''}>${n.label}</a>`).join('')}
+      ${NAV.filter(n => !n.super || me.role === 'super').map(n => `<a href="${n.href || '#/' + n.id}" ${n.id === page ? 'aria-current="page"' : ''}>${n.label}</a>`).join('')}
       <div class="me"><b>${esc(me.name)}</b>${me.role === 'super' ? 'Super admin' : 'Editor'} · <button class="link" id="out">Sign out</button></div>
     </nav>
     <main id="main">${html}</main></div>`;
@@ -288,7 +353,12 @@ function shell(page, html) {
 
 function route() {
   if (!me) return boot();
-  const page = location.hash.replace(/^#\/?/, '').split('/')[0];
+  const [page, arg] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
+  if (page === 'questions') return viewQuestions(arg);
+  if (page === 'results') return viewResults(arg);
+  if (page === 'bookids' && me.role === 'super') return viewBookIds();
+  if (page === 'students' && me.role === 'super') return viewStudents();
+  if (page === 'settings' && me.role === 'super') return viewSettings();
   if (page === 'admins' && me.role === 'super') return viewAdmins();
   if (page === 'log' && me.role === 'super') return viewLog();
   if (page === 'account') return viewAccount();
@@ -486,6 +556,462 @@ function viewAccount() {
     const f = e.target, box = f.querySelector('.err');
     try { await api('adminPassword', { oldPassword: f.old.value, newPassword: f.nw.value }); f.reset(); box.hidden = true; toast('Password changed'); }
     catch (err) { box.hidden = false; box.textContent = err.code === 'LOGIN_FAILED' ? 'Current password is wrong.' : errText(err); }
+  };
+}
+
+/* =========================================================
+   SHARED HELPERS FOR THE PAGES BELOW
+   ========================================================= */
+const LABELS = ['ক', 'খ', 'গ', 'ঘ'], KEYS = ['A', 'B', 'C', 'D'];
+const bn = v => String(v).replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
+function imgSrc(ref) {
+  ref = String(ref ?? '').trim();
+  if (!ref) return '';
+  const drive = ref.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{20,})/);
+  if (drive) return 'https://drive.google.com/thumbnail?id=' + drive[1] + '&sz=w2000';
+  if (/^https:\/\//i.test(ref)) return ref;
+  if (/^[\w-][\w\-./]*\.(png|jpe?g|gif|webp|svg)$/i.test(ref) && !ref.includes('..')) return (CFG.IMAGE_FOLDER || 'images/') + ref;
+  return '';
+}
+function imgTag(ref) {
+  if (!String(ref ?? '').trim()) return '';
+  const s = imgSrc(ref);
+  return s ? `<img class="qimg" src="${esc(s)}" alt="" onerror="this.outerHTML='<span class=imgmiss>Picture not found: ${esc(ref).replace(/'/g, '')}</span>'">`
+    : `<span class="imgmiss">Picture name not understood: ${esc(ref)}</span>`;
+}
+function rich(s) {
+  let t = String(s ?? '').replace(/\r/g, '');
+  t = t.replace(/\\\[([\s\S]*?)\\\]/g, m => m.replace(/\n/g, ' '));
+  t = t.replace(/\n?(\\\[[\s\S]*?\\\])\n?/g, '$1');
+  t = t.replace(/\n?(\[img:[^\]]*\])\n?/gi, '$1');
+  return esc(t).replace(/\[img:\s*([^\]\s]+)\s*\]/gi, (m, r) => imgTag(r.replace(/&amp;/g, '&'))).replace(/\n/g, '<br>');
+}
+function typeset(el) {
+  if (window.renderMathInElement) {
+    window.renderMathInElement(el, { delimiters: [{ left: '\\[', right: '\\]', display: true }, { left: '$$', right: '$$', display: true }, { left: '\\(', right: '\\)', display: false }], throwOnError: false });
+  } else window.addEventListener('load', () => typeset(el), { once: true });
+}
+// Short one-line version of a question for tables: no pictures, no cut-off formulas.
+function shortQ(t, max = 140) {
+  t = String(t || '').replace(/\[img:[^\]]*\]/gi, '').replace(/\\\[[\s\S]*?\\\]/g, ' … ').replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  t = t.slice(0, max);
+  const open = t.lastIndexOf('\\('), close = t.lastIndexOf('\\)');
+  if (open > close) t = t.slice(0, open);
+  return t.trim() + '…';
+}
+const when = iso => iso ? new Date(iso).toLocaleString() : '';
+async function ensureCatalog() { if (!cat) cat = await api('catalog'); return cat; }
+function examOptions(selected, withBlank = true) {
+  const groups = {};
+  cat.exams.forEach(e => { const k = (e.titleName || '—') + ' › ' + (e.subjectName || '—'); (groups[k] = groups[k] || []).push(e); });
+  return (withBlank ? '<option value="">Choose an exam…</option>' : '') + Object.keys(groups).map(k =>
+    `<optgroup label="${esc(k)}">${groups[k].map(e => `<option value="${esc(e.id)}" ${e.id === selected ? 'selected' : ''}>${esc(e.id)} · ${esc(e.name)}${e.open ? '' : ' (hidden)'}</option>`).join('')}</optgroup>`).join('');
+}
+const pageError = e => { if (e.code !== 'NOT_SIGNED_IN') $('#main').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; };
+Object.assign(ERR, {
+  Q_EMPTY: 'Write the question (or add a picture).', Q_OPTIONS: 'Fill in all four options.', Q_ANSWER: 'Choose the correct answer.',
+  Q_TOO_MANY: 'An A5 OMR sheet holds at most 60 questions.', Q_NOT_FOUND: 'That question no longer exists. Reload the page.',
+  HAS_RESULTS: 'Students have already submitted this exam, so questions can’t be added, removed or reordered (their saved answers would no longer match). You can still edit text and answers.',
+  BAD_COUNT: 'Enter a number in the allowed range.', SITE_URL_MISSING: 'Set your website address in Settings first. The QR codes point there.',
+  BAD_SITE_URL: 'Website address must start with https://', BOOK_NOT_FOUND: 'No book with this ID.', EXAM_NOT_FOUND: 'Exam not found.',
+});
+
+// Excel download (loads the spreadsheet library only when needed)
+let xlsxP = null;
+function loadXlsx() {
+  if (window.XLSX) return Promise.resolve();
+  if (!xlsxP) xlsxP = new Promise((ok, bad) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; sc.onload = ok; sc.onerror = bad; document.head.appendChild(sc); });
+  return xlsxP;
+}
+async function downloadXlsx(name, sheets) {
+  try { await loadXlsx(); } catch (e) { toast('Could not load the Excel library. Check the internet connection.'); return; }
+  const wb = XLSX.utils.book_new();
+  sheets.forEach(([title, rows]) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), title.slice(0, 31)));
+  XLSX.writeFile(wb, name.replace(/[^\w.-]+/g, '_') + '.xlsx');
+}
+function downloadCsv(name, rows) {
+  const csv = '\ufeff' + rows.map(r => r.map(v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = name.replace(/[^\w.-]+/g, '_') + '.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* =========================================================
+   QUESTIONS
+   ========================================================= */
+let qData = null;
+async function viewQuestions(examId) {
+  shell('questions', '<p class="muted">Loading…</p>');
+  try { await ensureCatalog(); } catch (e) { return pageError(e); }
+  examId = examId || (qData && qData.exam.id) || '';
+  $('#main').innerHTML = `
+    <div class="row" style="margin-bottom:.2rem"><h1>Questions</h1></div>
+    <p class="lede">Choose an exam to see, add and edit its questions. Word upload comes in the next update.</p>
+    <div class="row" style="margin-bottom:1rem"><select class="t" id="pick" style="max-width:34rem">${examOptions(examId)}</select></div>
+    <div id="qarea"></div>`;
+  $('#pick').onchange = e => { location.hash = '#/questions/' + encodeURIComponent(e.target.value); };
+  if (!examId) return;
+  $('#qarea').innerHTML = '<p class="muted">Loading questions…</p>';
+  try { qData = await api('qList', { examId }); } catch (e) { $('#qarea').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; return; }
+  renderQuestions();
+}
+
+function renderQuestions() {
+  const d = qData, locked = d.attempts > 0;
+  $('#qarea').innerHTML = `
+    <div class="card">
+      <div class="row" style="margin-bottom:.4rem">
+        <div><h2>${esc(d.exam.name)}</h2><span class="muted"><code>${esc(d.exam.id)}</code> · ${esc(d.exam.titleName)} › ${esc(d.exam.subjectName)} · ${d.questions.length} question${d.questions.length === 1 ? '' : 's'} · ${d.exam.open ? 'open to students' : 'hidden from students'}</span></div>
+        <span class="spacer"></span>
+        <a class="btn ghost sm" href="index.html?e=${encodeURIComponent(d.exam.id)}" target="_blank" rel="noopener" title="Opens the portal; use an admin preview book">Preview in portal</a>
+        <button class="btn sm" id="addQ" ${locked ? 'disabled' : ''}>+ Add question</button>
+      </div>
+      ${locked ? `<p class="note">${d.attempts} student result(s) exist for this exam. You can edit questions and answers (scores are recalculated automatically when an answer changes), but you can't add, remove or reorder questions.</p>` : ''}
+      <div id="qlist">${d.questions.length ? d.questions.map((q, i) => `
+        <div class="qcard">
+          <span class="qnum">${bn(i + 1)}.</span>
+          <div class="qbody"><div class="qt">${rich(q.question)}</div>${imgTag(q.image)}
+            <div class="qopts">${q.options.map((o, j) => `<div class="${KEYS[j] === q.answer ? 'right' : ''}">(${LABELS[j]}) ${rich(o)}${KEYS[j] === q.answer ? ' ✓' : ''}</div>`).join('')}</div></div>
+          <div class="qtools">
+            <button class="btn ghost sm" data-edit="${i}">Edit</button>
+            ${locked ? '' : `<button class="btn ghost sm" data-up="${i}" ${i ? '' : 'disabled'} aria-label="Move up">↑</button>
+            <button class="btn ghost sm" data-down="${i}" ${i < d.questions.length - 1 ? '' : 'disabled'} aria-label="Move down">↓</button>
+            <button class="btn danger sm" data-del="${i}">Delete</button>`}
+          </div>
+        </div>`).join('') : '<p class="muted">No questions yet.</p>'}</div>
+    </div>`;
+  typeset($('#qlist'));
+  const ex = d.exam.id;
+  if ($('#addQ')) $('#addQ').onclick = () => questionDialog(null);
+  document.querySelectorAll('[data-edit]').forEach(b => { b.onclick = () => questionDialog(+b.dataset.edit); });
+  document.querySelectorAll('[data-up],[data-down]').forEach(b => {
+    b.onclick = async () => {
+      const i = +(b.dataset.up ?? b.dataset.down);
+      try { qData = await api('qMove', { examId: ex, no: i + 1, dir: b.dataset.up !== undefined ? -1 : 1 }); renderQuestions(); } catch (e) { toast(errText(e)); }
+    };
+  });
+  document.querySelectorAll('[data-del]').forEach(b => {
+    b.onclick = async () => {
+      const i = +b.dataset.del;
+      if (!confirm(`Delete question ${i + 1}? The questions after it move up one number.`)) return;
+      try { qData = await api('qDelete', { examId: ex, no: i + 1 }); renderQuestions(); toast('Question deleted'); cat = null; } catch (e) { toast(errText(e)); }
+    };
+  });
+}
+
+const MATH_SNIPPETS = [
+  ['Inline math', '\\(', '\\)'], ['Own line', '\\[', '\\]'], ['a/b', '\\frac{', '}{}'], ['x²', '^{', '}'], ['x₁', '_{', '}'],
+  ['√', '\\sqrt{', '}'], ['×', '\\times ', ''], ['θ', '\\theta ', ''], ['Δ', '\\Delta ', ''], ['π', '\\pi ', ''], ['unit', '\\mathrm{', '}'],
+];
+function questionDialog(index) {
+  const q = index === null ? { question: '', image: '', options: ['', '', '', ''], answer: '', solution: '', solutionImage: '' } : qData.questions[index];
+  const no = index === null ? '' : index + 1;
+  dialog(`<h2>${index === null ? 'Add a question' : 'Edit question ' + (index + 1)}</h2>
+    <div class="editor">
+      <div class="stack">
+        <div><span class="muted" style="font-size:.85rem">Math: put it between <code>\\(</code> and <code>\\)</code>. Buttons insert at the cursor.</span>
+          <div class="mathbar">${MATH_SNIPPETS.map((m, i) => `<button type="button" data-snip="${i}">${esc(m[0])}</button>`).join('')}</div></div>
+        <label class="f"><span>Question</span><textarea class="t" name="question" rows="3">${esc(q.question)}</textarea></label>
+        <label class="f"><span>Picture under the question (optional)</span><input class="t" name="image" value="${esc(q.image)}" placeholder="phy02-q5.png"><small>A file name in your site's images folder, or a link.</small></label>
+        ${LABELS.map((l, j) => `<label class="f"><span>Option (${l})</span><input class="t" name="o${j}" value="${esc(q.options[j])}"></label>`).join('')}
+        <div><span style="font-weight:600;font-size:.88rem;display:block;margin-bottom:.3rem">Correct answer</span>
+          <div class="ansrow" role="radiogroup" aria-label="Correct answer">${LABELS.map((l, j) => `<label><input type="radio" name="answer" value="${KEYS[j]}" ${q.answer === KEYS[j] ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
+        <label class="f"><span>Solution / explanation</span><textarea class="t" name="solution" rows="5">${esc(q.solution)}</textarea></label>
+        <label class="f"><span>Picture at the end of the solution (optional)</span><input class="t" name="solutionImage" value="${esc(q.solutionImage)}"></label>
+      </div>
+      <div><div class="preview" id="pv" aria-live="polite"></div></div>
+    </div>${dlgButtons(index === null ? 'Add question' : 'Save')}`,
+  async (v, f) => {
+    const data = { question: f.question.value, image: f.image.value, options: [0, 1, 2, 3].map(j => f['o' + j].value), answer: (f.querySelector('[name=answer]:checked') || {}).value || '', solution: f.solution.value, solutionImage: f.solutionImage.value };
+    qData = await api('qSave', { examId: qData.exam.id, no, q: data });
+    renderQuestions(); cat = null;
+    toast(index === null ? 'Question added' : 'Question saved');
+  },
+  f => {
+    $('#dlg').classList.add('wide');
+    $('#dlg').addEventListener('close', () => $('#dlg').classList.remove('wide'), { once: true });
+    let lastField = f.question;
+    f.addEventListener('focusin', e => { if (e.target.matches('textarea, input.t')) lastField = e.target; });
+    f.querySelectorAll('[data-snip]').forEach(b => b.onclick = () => {
+      const [, a, z] = MATH_SNIPPETS[+b.dataset.snip], el = lastField;
+      const s0 = el.selectionStart ?? el.value.length, s1 = el.selectionEnd ?? s0;
+      el.value = el.value.slice(0, s0) + a + el.value.slice(s0, s1) + z + el.value.slice(s1);
+      el.focus(); el.selectionStart = el.selectionEnd = s0 + a.length + (s1 - s0);
+      update();
+    });
+    let t;
+    const update = () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const ans = (f.querySelector('[name=answer]:checked') || {}).value;
+        $('#pv').innerHTML = `<div class="lbl">Preview: what students see</div>
+          <div>${rich(f.question.value) || '<span class="muted">Question…</span>'}</div>${imgTag(f.image.value)}
+          <div style="margin-top:.5rem">${[0, 1, 2, 3].map(j => `<div class="po ${ans === KEYS[j] ? 'right' : ''}"><b>(${LABELS[j]})</b><span>${rich(f['o' + j].value)}</span></div>`).join('')}</div>
+          ${f.solution.value || f.solutionImage.value ? `<div class="sol"><b>সমাধান</b><div>${rich(f.solution.value)}</div>${imgTag(f.solutionImage.value)}</div>` : ''}`;
+        typeset($('#pv'));
+      }, 150);
+    };
+    f.addEventListener('input', update); f.addEventListener('change', update);
+    update();
+  });
+}
+
+/* =========================================================
+   RESULTS
+   ========================================================= */
+async function viewResults(arg) {
+  shell('results', '<p class="muted">Loading…</p>');
+  try { await ensureCatalog(); } catch (e) { return pageError(e); }
+  const [mode, id] = (arg || 'exam:').split(':');
+  const tabs = [['exam', 'By exam'], ['book', 'Book ranking'], ['student', 'One student']];
+  $('#main').innerHTML = `<h1>Results</h1><p class="lede">Only each student's first (main) submission counts. Admin preview books are left out.</p>
+    <nav class="tabs">${tabs.map(([k, l]) => `<a href="#/results/${k}:" ${k === mode ? 'aria-current="page"' : ''}>${l}</a>`).join('')}</nav>
+    <div id="rarea"></div>`;
+  if (mode === 'book') return resultsBook(id);
+  if (mode === 'student') return resultsStudent(id);
+  return resultsExam(id);
+}
+
+async function resultsExam(examId) {
+  $('#rarea').innerHTML = `<div class="row" style="margin-bottom:1rem"><select class="t" id="pick" style="max-width:34rem">${examOptions(examId)}</select></div><div id="rx"></div>`;
+  $('#pick').onchange = e => { location.hash = '#/results/exam:' + encodeURIComponent(e.target.value); };
+  if (!examId) return;
+  $('#rx').innerHTML = '<p class="muted">Loading…</p>';
+  let r;
+  try { r = await api('resultsExam', { examId }); } catch (e) { $('#rx').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; return; }
+  const bins = Array(10).fill(0);
+  r.students.forEach(s => { const p = s.total ? Math.max(0, s.score) / s.total : 0; bins[Math.min(9, Math.floor(p * 10))]++; });
+  const maxBin = Math.max(1, ...bins);
+  $('#rx').innerHTML = `
+    <div class="stats">
+      <div class="stat"><b>${r.count}</b><span>students</span></div>
+      <div class="stat"><b>${r.average}</b><span>average (out of ${r.total})</span></div>
+      <div class="stat"><b>${r.highest}</b><span>highest</span></div>
+      <div class="stat"><b>${r.lowest}</b><span>lowest</span></div>
+    </div>
+    ${r.count ? `<div class="card" style="margin-top:1rem"><h2 style="margin-bottom:1.6rem">How marks are spread</h2>
+      <div class="bars" role="img" aria-label="Number of students in each 10% band of marks">${bins.map(b => `<div style="height:${b / maxBin * 100}%"><span>${b || ''}</span></div>`).join('')}</div>
+      <div class="barlbl">${bins.map((_, i) => `<span>${i * 10}–${i * 10 + 10}%</span>`).join('')}</div></div>` : ''}
+    <div class="card" style="margin-top:1rem">
+      <div class="row" style="margin-bottom:.5rem"><h2>Questions</h2><span class="muted">Lowest percentages are the hardest questions.</span></div>
+      <div class="tw"><table><thead><tr><th>#</th><th>Correct</th><th>Answer</th><th>ক</th><th>খ</th><th>গ</th><th>ঘ</th><th>Blank</th><th>Question</th></tr></thead><tbody>
+      ${r.questions.map(q => `<tr><td class="n">${q.no}</td><td><span class="pct ${q.correctPct < 40 ? 'low' : ''}"><i style="width:${q.correctPct * 0.8}px"></i>${q.correctPct}%</span></td>
+        <td>${LABELS[KEYS.indexOf(q.answer)] || '?'}</td>${KEYS.map(k => `<td class="n">${q.counts[k]}</td>`).join('')}<td class="n">${q.counts.blank}</td>
+        <td class="qtext" style="max-width:24rem">${rich(shortQ(q.question))}</td></tr>`).join('')}
+      </tbody></table></div></div>
+    <div class="card" style="margin-top:1rem">
+      <div class="row" style="margin-bottom:.5rem"><h2>Students</h2><span class="spacer"></span><button class="btn ghost sm" id="xl">Download Excel</button></div>
+      <div class="tw"><table><thead><tr><th>Rank</th><th>Name</th><th>Institution</th><th>Book ID</th>${me.role === 'super' ? '<th>Phone</th>' : ''}<th>Marks</th><th>✓ / ✗ / –</th><th>Submitted</th></tr></thead><tbody>
+      ${r.students.map(s => `<tr><td class="n">${s.rank}</td><td><a href="#/results/student:${encodeURIComponent(s.bookId)}">${esc(s.name)}</a></td><td>${esc(s.institution)}</td><td><code>${esc(s.bookId)}</code></td>
+        ${me.role === 'super' ? `<td>${esc(s.phone)}</td>` : ''}<td class="n"><b>${s.score}</b> / ${s.total}</td><td class="n">${s.correct} / ${s.wrong} / ${s.blank}</td><td class="muted">${esc(when(s.at))}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">No submissions yet.</td></tr>'}
+      </tbody></table></div></div>`;
+  typeset($('#rx'));
+  $('#xl').onclick = () => downloadXlsx('results-' + r.exam.id, [
+    ['Students', [['Rank', 'Name', 'Institution', 'Book ID', ...(me.role === 'super' ? ['Phone'] : []), 'Marks', 'Out of', 'Correct', 'Wrong', 'Blank', 'Submitted']]
+      .concat(r.students.map(s => [s.rank, s.name, s.institution, s.bookId, ...(me.role === 'super' ? [s.phone] : []), s.score, s.total, s.correct, s.wrong, s.blank, when(s.at)]))],
+    ['Questions', [['No', 'Correct %', 'Answer', 'ক', 'খ', 'গ', 'ঘ', 'Blank', 'Question']]
+      .concat(r.questions.map(q => [q.no, q.correctPct, LABELS[KEYS.indexOf(q.answer)] || '', q.counts.A, q.counts.B, q.counts.C, q.counts.D, q.counts.blank, q.question]))],
+  ]);
+}
+
+async function resultsBook(titleId) {
+  titleId = titleId || (cat.titles[0] || {}).id || '';
+  $('#rarea').innerHTML = `<div class="row" style="margin-bottom:1rem"><select class="t" id="pick" style="max-width:24rem">${cat.titles.map(t => `<option value="${esc(t.id)}" ${t.id === titleId ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div><div id="rx"></div>`;
+  $('#pick').onchange = e => { location.hash = '#/results/book:' + encodeURIComponent(e.target.value); };
+  if (!titleId) return;
+  let r;
+  try { r = await api('resultsBook', { titleId }); } catch (e) { $('#rx').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; return; }
+  $('#rx').innerHTML = `<div class="card">
+    <div class="row" style="margin-bottom:.5rem"><div><h2>${esc(r.title.name)}: full ranking</h2>
+      <span class="muted">Students who finished all ${r.exams.length} open exam(s). Ties go to whoever finished first. Students ${r.published ? 'can' : 'can’t yet'} see the top list${me.role === 'super' ? ' (change in Settings)' : ''}.</span></div>
+      <span class="spacer"></span><button class="btn ghost sm" id="xl">Download Excel</button></div>
+    <div class="tw"><table><thead><tr><th>Rank</th><th>Name</th><th>Institution</th><th>Book ID</th>${me.role === 'super' ? '<th>Phone</th>' : ''}<th>Total marks</th><th>Finished</th></tr></thead><tbody>
+    ${r.board.map(x => `<tr><td class="n">${x.rank}</td><td><a href="#/results/student:${encodeURIComponent(x.bookId)}">${esc(x.name)}</a></td><td>${esc(x.institution)}</td><td><code>${esc(x.bookId)}</code></td>
+      ${me.role === 'super' ? `<td>${esc(x.phone)}</td>` : ''}<td class="n"><b>${x.score}</b> / ${x.total}</td><td class="muted">${esc(when(x.finishedAt))}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nobody has finished every exam yet.</td></tr>'}
+    </tbody></table></div></div>`;
+  $('#xl').onclick = () => downloadXlsx('ranking-' + r.title.name, [['Ranking', [['Rank', 'Name', 'Institution', 'Book ID', ...(me.role === 'super' ? ['Phone'] : []), 'Marks', 'Out of', 'Finished']]
+    .concat(r.board.map(x => [x.rank, x.name, x.institution, x.bookId, ...(me.role === 'super' ? [x.phone] : []), x.score, x.total, when(x.finishedAt)]))]]);
+}
+
+async function resultsStudent(bookId) {
+  $('#rarea').innerHTML = `<form class="row" id="sf" style="margin-bottom:1rem"><input class="t" name="id" value="${esc(bookId || '')}" placeholder="Book ID, e.g. 7K3M-9Q2X" style="max-width:16rem;text-transform:uppercase"><button class="btn">Show</button>
+    ${me.role === 'super' ? '<a class="link" href="#/students">Search students by name or phone</a>' : ''}</form><div id="rx"></div>`;
+  $('#sf').onsubmit = e => { e.preventDefault(); location.hash = '#/results/student:' + encodeURIComponent(e.target.id.value.trim().toUpperCase()); };
+  if (!bookId) return;
+  let r;
+  try { r = await api('resultsStudent', { bookId }); } catch (e) { $('#rx').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; return; }
+  const s = r.student;
+  $('#rx').innerHTML = `<div class="card" style="margin-bottom:1rem"><h2>${esc(s.name || '(not registered)')}</h2>
+      <span class="muted">${esc(s.institution)}${s.phone ? ' · ' + esc(s.phone) : ''} · Book <code>${esc(s.bookId)}</code> (${esc(s.title)}) · ${esc(s.status)}${s.registeredAt ? ' · registered ' + esc(when(s.registeredAt)) : ''}</span></div>
+    ${r.exams.length ? r.exams.map(e => `<div class="card" style="margin-bottom:1rem">
+      <div class="row" style="margin-bottom:.6rem"><div><h2>${esc(e.name)}</h2><span class="muted"><code>${esc(e.id)}</code>${e.subject ? ' · ' + esc(e.subject) : ''} · ${esc(when(e.at))}</span></div><span class="spacer"></span>
+      <b style="font-size:1.2rem">${e.score} / ${e.total}</b><span class="muted">✓ ${e.correct} · ✗ ${e.wrong} · – ${e.blank}</span></div>
+      <div class="ans-grid">${e.items.map(it => `<span class="${it.status}" title="Question ${it.no}">${it.no}. ${it.given ? LABELS[KEYS.indexOf(it.given)] : '–'}${it.status === 'correct' ? '' : ' → ' + (LABELS[KEYS.indexOf(it.correct)] || '?')}</span>`).join('')}</div>
+      <p class="muted" style="margin:.5rem 0 0;font-size:.85rem">Each box: question number, the student's answer, and (if wrong or blank) → the correct answer.</p></div>`).join('')
+      : '<p class="muted">No exams submitted yet.</p>'}`;
+}
+
+/* =========================================================
+   BOOK IDS & QR CODES (super admin)
+   ========================================================= */
+let bookFilter = { titleId: '', batch: '', q: '' };
+async function viewBookIds() {
+  shell('bookids', '<p class="muted">Loading…</p>');
+  try { await ensureCatalog(); } catch (e) { return pageError(e); }
+  $('#main').innerHTML = `<h1>Book IDs & QR codes</h1>
+    <p class="lede">Every printed copy gets its own ID and QR code. Scanning it opens the portal for that copy.</p>
+    <form class="card stack" id="gen">
+      <h2>Make IDs for a print run</h2>
+      <div class="grid2">
+        <label class="f"><span>Book</span><select class="t" name="title">${cat.titles.map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</select></label>
+        <label class="f"><span>How many copies</span><input class="t" name="count" type="number" min="1" max="2000" value="100" required></label>
+      </div>
+      <label class="f"><span>Batch name (optional)</span><input class="t" name="batch" placeholder="e.g. 2026 first print"><small>Helps you find this print run later.</small></label>
+      <p class="alert err" hidden></p>
+      <div><button class="btn">Make IDs</button></div>
+      <div id="genout"></div>
+    </form>
+    <div class="card" style="margin-top:1rem">
+      <div class="row" style="margin-bottom:.6rem"><h2>All book IDs</h2><span class="spacer"></span><span class="muted" id="cnt"></span></div>
+      <form class="row" id="flt" style="margin-bottom:.6rem">
+        <select class="t" name="title" style="max-width:14rem"><option value="">All books</option>${cat.titles.map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</select>
+        <select class="t" name="batch" style="max-width:12rem"><option value="">All batches</option></select>
+        <input class="t" name="q" placeholder="Search ID or name" style="max-width:14rem">
+        <button class="btn ghost">Filter</button>
+        <span class="spacer"></span><button type="button" class="btn ghost sm" id="qrAll">QR labels for this list</button><button type="button" class="btn ghost sm" id="csvAll">Download Excel</button>
+      </form>
+      <div class="tw" id="blist"><p class="muted">Loading…</p></div>
+    </div>`;
+  $('#gen').onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target, box = f.querySelector('.err');
+    box.hidden = true;
+    try {
+      const r = await api('booksGenerate', { titleId: f.title.value, count: f.count.value, batch: f.batch.value });
+      const tname = (cat.titles.find(t => t.id === f.title.value) || {}).name || '';
+      $('#genout').innerHTML = `<p class="note"><b>${r.ids.length} new IDs made</b> (batch "${esc(r.batch)}"). Download them for your printer, or print QR labels now.</p>
+        <div class="row" style="margin:.6rem 0"><button type="button" class="btn sm" id="g1">Print QR labels</button><button type="button" class="btn ghost sm" id="g2">Download Excel</button><button type="button" class="btn ghost sm" id="g3">Download CSV</button></div>
+        <div class="ids">${r.ids.map(esc).join('<br>')}</div>`;
+      const rows = [['BookID', 'URL']].concat(r.ids.map(id => [id, r.siteUrl + '?book=' + id]));
+      $('#g1').onclick = () => qrLabels(r.ids, r.siteUrl, tname);
+      $('#g2').onclick = () => downloadXlsx('book-ids-' + r.batch, [['IDs', rows]]);
+      $('#g3').onclick = () => downloadCsv('book-ids-' + r.batch, rows);
+      cat = null; loadBooks();
+    } catch (err) { box.hidden = false; box.textContent = errText(err); }
+  };
+  $('#flt').onsubmit = e => { e.preventDefault(); const f = e.target; bookFilter = { titleId: f.title.value, batch: f.batch.value, q: f.q.value.trim() }; loadBooks(); };
+  loadBooks();
+}
+
+let bookList = null;
+async function loadBooks() {
+  try { bookList = await api('booksList', Object.assign({ limit: 5000 }, bookFilter)); } catch (e) { $('#blist').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; return; }
+  const f = $('#flt');
+  f.title.value = bookFilter.titleId; f.q.value = bookFilter.q;
+  f.batch.innerHTML = '<option value="">All batches</option>' + Object.keys(bookList.batches).map(b => `<option ${b === bookFilter.batch ? 'selected' : ''}>${esc(b)}</option>`).join('');
+  $('#cnt').textContent = `${bookList.matched} shown of ${bookList.total} · ${bookList.registered} registered`;
+  const shown = bookList.books.slice(0, 300);
+  $('#blist').innerHTML = `<table><thead><tr><th>Book ID</th><th>Book</th><th>Batch</th><th>Status</th><th>Registered to</th><th></th></tr></thead><tbody>
+    ${shown.map(b => `<tr><td><code>${esc(b.id)}</code></td><td>${esc(b.titleName)}</td><td>${esc(b.batch)}</td>
+      <td>${b.status === 'BLOCKED' ? '<span class="pill" style="color:var(--bad)">Blocked</span>' : b.status === 'ADMIN' ? '<span class="pill super">Admin preview</span>' : '<span class="pill ok">Active</span>'}</td>
+      <td>${b.name ? esc(b.name) : '<span class="muted">—</span>'}</td>
+      <td style="text-align:right;white-space:nowrap"><button class="btn ghost sm" data-qr="${esc(b.id)}">QR</button>
+        <button class="btn ghost sm" data-st="${esc(b.id)}">${b.status === 'BLOCKED' ? 'Unblock' : 'Block'}</button></td></tr>`).join('') || '<tr><td colspan="6" class="muted">No book IDs match.</td></tr>'}
+    </tbody></table>${bookList.matched > shown.length ? `<p class="muted">Showing the newest ${shown.length}. The QR and Excel buttons include all ${bookList.matched}.</p>` : ''}`;
+  document.querySelectorAll('[data-qr]').forEach(b => { b.onclick = () => { const x = bookList.books.find(k => k.id === b.dataset.qr); qrLabels([x.id], bookList.siteUrl, x.titleName); }; });
+  document.querySelectorAll('[data-st]').forEach(b => {
+    b.onclick = async () => {
+      const x = bookList.books.find(k => k.id === b.dataset.st);
+      const to = x.status === 'BLOCKED' ? 'ACTIVE' : 'BLOCKED';
+      if (to === 'BLOCKED' && !confirm(`Block ${x.id}? The student can no longer sign in with it.`)) return;
+      try { await api('bookUpdate', { bookId: x.id, status: to }); toast(to === 'BLOCKED' ? 'Blocked' : 'Unblocked'); loadBooks(); } catch (e) { toast(errText(e)); }
+    };
+  });
+  $('#qrAll').onclick = () => { if (!bookList.books.length) return; qrLabels(bookList.books.map(b => b.id).reverse(), bookList.siteUrl, bookList.books.length && bookFilter.titleId ? bookList.books[0].titleName : ''); };
+  $('#csvAll').onclick = () => downloadXlsx('book-ids', [['IDs', [['BookID', 'Book', 'Batch', 'Status', 'Registered to', 'URL']].concat(bookList.books.slice().reverse().map(b => [b.id, b.titleName, b.batch, b.status, b.name, bookList.siteUrl + '?book=' + b.id]))]]);
+}
+
+// Opens a printable sheet of QR labels in a new tab.
+function qrLabels(ids, siteUrl, bookName) {
+  if (typeof qrcode !== 'function') { toast('QR library not loaded yet. Try again in a moment.'); return; }
+  const svg = text => { const q = qrcode(0, 'M'); q.addData(text); q.make(); const m = q.getModuleCount(); let d = '';
+    for (let r = 0; r < m; r++) for (let c = 0; c < m; c++) if (q.isDark(r, c)) d += `M${c} ${r}h1v1h-1z`;
+    return `<svg viewBox="-2 -2 ${m + 4} ${m + 4}" xmlns="http://www.w3.org/2000/svg"><rect x="-2" y="-2" width="${m + 4}" height="${m + 4}" fill="#fff"/><path d="${d}"/></svg>`; };
+  const w = window.open('', '_blank');
+  if (!w) { toast('Allow pop-ups for this site to print labels.'); return; }
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>QR labels</title>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@500;700&display=swap" rel="stylesheet">
+    <style>body{margin:0;font-family:'Hind Siliguri',sans-serif}.bar{padding:12px;font:14px system-ui}.g{display:grid;grid-template-columns:repeat(4,1fr);gap:4mm;padding:8mm}
+    .l{border:1px dashed #bbb;border-radius:3mm;padding:3mm;text-align:center;break-inside:avoid}.l svg{width:28mm;height:28mm}.id{font:700 13px ui-monospace,monospace;letter-spacing:.06em}
+    .b{font-size:10px;color:#444}@media print{.bar{display:none}.g{padding:0}@page{margin:8mm}}</style></head><body>
+    <div class="bar">${ids.length} label(s). <button onclick="print()">Print or save as PDF</button></div>
+    <div class="g">${ids.map(id => `<div class="l">${svg(siteUrl + '?book=' + id)}<div class="id">${id}</div><div class="b">${esc(bookName || '')}</div></div>`).join('')}</div></body></html>`);
+  w.document.close();
+}
+
+/* =========================================================
+   STUDENTS (super admin)
+   ========================================================= */
+async function viewStudents() {
+  shell('students', `<h1>Students</h1><p class="lede">Find a student by name, phone, institution or book ID.</p>
+    <form class="row" id="sf" style="margin-bottom:1rem"><input class="t" name="q" placeholder="Search…" style="max-width:20rem" autofocus><button class="btn">Search</button></form>
+    <div class="card tw" id="slist"><p class="muted">Loading…</p></div>`);
+  const load = async q => {
+    let r;
+    try { r = await api('booksList', { registered: true, q, limit: 300 }); } catch (e) { $('#slist').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; return; }
+    $('#slist').innerHTML = `<p class="muted" style="margin-top:0">${r.matched} of ${r.registered} registered student(s)${r.matched > r.books.length ? ', newest ' + r.books.length + ' shown' : ''}.</p>
+      <table><thead><tr><th>Name</th><th>Phone</th><th>Institution</th><th>Book ID</th><th>Book</th><th>Registered</th><th></th></tr></thead><tbody>
+      ${r.books.map(b => `<tr><td><a href="#/results/student:${encodeURIComponent(b.id)}">${esc(b.name)}</a>${b.status === 'BLOCKED' ? ' <span class="pill" style="color:var(--bad)">Blocked</span>' : ''}</td>
+        <td>${esc(b.phone)}</td><td>${esc(b.institution)}</td><td><code>${esc(b.id)}</code></td><td>${esc(b.titleName)}</td><td class="muted">${esc(when(b.registeredAt))}</td>
+        <td style="text-align:right;white-space:nowrap"><button class="btn ghost sm" data-pin="${esc(b.id)}" ${b.hasPin ? '' : 'disabled'}>Reset PIN</button>
+          <button class="btn ghost sm" data-st="${esc(b.id)}" data-to="${b.status === 'BLOCKED' ? 'ACTIVE' : 'BLOCKED'}">${b.status === 'BLOCKED' ? 'Unblock' : 'Block'}</button></td></tr>`).join('') || '<tr><td colspan="7" class="muted">No students found.</td></tr>'}
+      </tbody></table>`;
+    document.querySelectorAll('[data-pin]').forEach(b => b.onclick = async () => {
+      if (!confirm(`Reset the PIN for ${b.dataset.pin}?\n\nOnly do this after confirming it's really the student (e.g. a call from their registered phone). They will set a new PIN using their registered phone number.`)) return;
+      try { await api('bookUpdate', { bookId: b.dataset.pin, resetPin: true }); toast('PIN reset'); load(q); } catch (e) { toast(errText(e)); }
+    });
+    document.querySelectorAll('[data-st]').forEach(b => b.onclick = async () => {
+      if (b.dataset.to === 'BLOCKED' && !confirm(`Block ${b.dataset.st}?`)) return;
+      try { await api('bookUpdate', { bookId: b.dataset.st, status: b.dataset.to }); toast('Saved'); load(q); } catch (e) { toast(errText(e)); }
+    });
+  };
+  $('#sf').onsubmit = e => { e.preventDefault(); load(e.target.q.value.trim()); };
+  load('');
+}
+
+/* =========================================================
+   SETTINGS (super admin)
+   ========================================================= */
+async function viewSettings() {
+  shell('settings', '<p class="muted">Loading…</p>');
+  let s;
+  try { s = (await api('settingsGet')).settings; } catch (e) { return pageError(e); }
+  $('#main').innerHTML = `<h1>Settings</h1><p class="lede">These apply to the whole site.</p>
+    <form class="card stack" id="sf" style="max-width:40rem">
+      <label class="f"><span>Website address</span><input class="t" name="site" value="${esc(s.siteUrl)}" placeholder="https://exam.yourdomain.com/"><small>Book QR codes point here. Set it before making book IDs; printed QR codes can't change later.</small></label>
+      <div class="grid2">
+        <label class="f"><span>Default marks per correct answer</span><input class="t" name="mc" type="number" step="0.01" min="0.01" value="${s.markCorrect}"></label>
+        <label class="f"><span>Default marks per wrong answer</span><input class="t" name="mw" type="number" step="0.01" max="0" value="${s.markWrong}"><small>e.g. -0.25. Exams can override both.</small></label>
+      </div>
+      <label class="check"><input type="checkbox" name="pub" ${s.published ? 'checked' : ''}> Students can see the top list</label>
+      <label class="f" style="max-width:12rem"><span>Top list size</span><input class="t" name="size" type="number" min="1" max="1000" value="${s.size}"></label>
+      <p class="alert err" hidden></p>
+      <div><button class="btn">Save settings</button></div>
+    </form>
+    <div class="card stack" style="max-width:40rem;margin-top:1rem">
+      <h2>Recalculate all scores</h2>
+      <p class="muted" style="margin:0">Re-marks every saved submission with the current answer keys and marking. Use it after changing marking. (Changing a single answer already recalculates that exam.)</p>
+      <div><button class="btn ghost" id="rc">Recalculate now</button></div>
+    </div>`;
+  $('#sf').onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target, box = f.querySelector('.err'); box.hidden = true;
+    try { await api('settingsSave', { settings: { siteUrl: f.site.value.trim(), markCorrect: f.mc.value, markWrong: f.mw.value, published: f.pub.checked, size: f.size.value } }); toast('Settings saved'); cat = null; }
+    catch (err) { box.hidden = false; box.textContent = errText(err); }
+  };
+  $('#rc').onclick = async () => {
+    try { const r = await api('recalcAll'); toast(`${r.changed} submission(s) changed`); } catch (e) { toast(errText(e)); }
   };
 }
 

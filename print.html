@@ -100,7 +100,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 
 <div class="tool">
   <h1>Print question papers</h1>
-  <p>Makes print-ready question papers from the exams in your Google Sheet: the questions, an answer key, the detailed solutions, and the OMR sheet. Sign in with a book whose Status is <b>ADMIN</b> in the Books tab.</p>
+  <p><a href="admin.html">← Admin portal</a></p>
+  <p>Makes print-ready question papers from your exams: the questions, an answer key, the detailed solutions, and the OMR sheet. Opens directly when you're signed in to the admin portal.</p>
 
   <div class="panel" id="signin">
     <h2>1. Sign in</h2>
@@ -163,6 +164,8 @@ const store = {
   del(k) { try { localStorage.removeItem(k); } catch (e) {} },
 };
 let session = store.get('omr_print_session') || {};
+// Signed in to admin.html? Then use that admin session instead of an admin book.
+const adminToken = (() => { try { return localStorage.getItem('omr_admin_token') || ''; } catch (e) { return ''; } })();
 let exams = [];
 
 function say(t, err) { const m = $('#msg'); m.textContent = t || ''; m.className = err ? 'err' : ''; }
@@ -175,6 +178,7 @@ const ERRORS = {
   NOT_REGISTERED: 'Register this book in the portal first (open the portal with this book ID).',
   PIN_NOT_SET: 'Set a PIN for this book in the portal first.',
   EXAM_NOT_FOUND: 'One of the chosen exams was not found.',
+  NOT_SIGNED_IN: 'Your admin session ended. Sign in again in admin.html.',
   UNKNOWN_ACTION: 'Your Apps Script is an old version. Paste the new Code.gs and deploy a New version (see README Part 1).',
   NETWORK: 'Could not reach the server. Check the internet connection.',
   CONFIG: 'API_URL in config.js is not set.',
@@ -305,7 +309,7 @@ $('#make').onclick = async () => {
 
   say('Loading questions…'); $('#print').disabled = true;
   let r;
-  try { r = await api('paper', { bookId: session.id, pin: session.pin, examIds: ids }); }
+  try { r = await api('paper', adminToken ? { token: adminToken, examIds: ids } : { bookId: session.id, pin: session.pin, examIds: ids }); }
   catch (e) { return say(errText(e), true); }
 
   const empty = r.exams.filter(ex => !ex.questions.length);
@@ -320,7 +324,7 @@ $('#make').onclick = async () => {
   let html = '';
   try {
     list.forEach(ex => {
-      html += paperHtml(ex, o, r.marking);
+      html += paperHtml(ex, o, ex.marking || r.marking);
       if (o.key === 'each') html += `<section class="keysec newpage"><h3>উত্তরমালা</h3>${keyHtml([ex])}</section>`;
       if (o.sol === 'each') html += `<section class="solsec newpage"><h3>সমাধান</h3>${solHtml([ex])}</section>`;
       if (o.omr !== 'none') html += omrHtml(ex, o);
@@ -359,7 +363,20 @@ $('#print').onclick = () => window.print();
 
 /* ---------- start ---------- */
 if (/^https:/.test(location.protocol)) $('#site').value = location.href.replace(/[?#].*$/, '').replace(/print\.html$/, '');
-if (session.id && session.pin) signIn();
+async function adminStart() {
+  try {
+    const c = await api('catalog', { token: adminToken });
+    exams = c.exams.map(e => ({ id: e.id, name: (c.titles.length > 1 ? e.titleName + ' › ' : '') + e.subjectName + ' › ' + e.name, numQuestions: e.questions, hidden: !e.open }));
+    $('#signin').hidden = true; $('#choose').hidden = false; $('#opts').hidden = false;
+    $('#signout').textContent = '← Back to admin'; $('#signout').onclick = () => { location.href = 'admin.html'; };
+    renderExamList();
+  } catch (e) {
+    const box = $('#signin'); box.hidden = false;
+    const p = document.createElement('p'); p.style.color = '#b3261e'; p.textContent = errText(e) + ' You can also sign in with an admin book below.'; box.appendChild(p);
+  }
+}
+if (adminToken) adminStart();
+else if (session.id && session.pin) signIn();
 })();
 </script>
 </body>
