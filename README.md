@@ -6,8 +6,13 @@ This guide assumes no programming experience. Follow the parts in order. The who
 
 | File | What it is | Where it goes |
 |---|---|---|
+| `config.js` | **Your settings** (backend link, book name, helpline). The only file you edit. | GitHub |
 | `index.html` | The student portal (the website). | GitHub |
+| `print.html` | A tool for you that prints question papers, answer keys, solutions and OMR sheets. | GitHub |
+| `omr-draw.js` | Draws the OMR sheet; used by `omr-sheet.html` and `print.html`. | GitHub |
 | `generator.html` | A tool for you that turns book IDs into printable QR codes. | GitHub |
+| `omr-sheet.html` | A tool for you that makes the printable A5 OMR answer sheet for each exam. | GitHub |
+| `omr-scan.js`, `omr-layout.js` | The camera scanner, used by `index.html`. | GitHub |
 | `Code.gs` | The "brain": checks answers, locks main attempts, keeps scores. | Google Sheets (Apps Script) |
 | `README.md` | This guide. | GitHub (optional) |
 
@@ -48,26 +53,29 @@ Use a Google account that belongs to your business, because this account will ow
 
 ## Part 2: Put the website on GitHub Pages
 
-### Edit three settings in `index.html`
+### Edit your settings in `config.js`
 
-1. Open `index.html` in Notepad. Near the top you'll find:
+1. Open `config.js` in Notepad. It looks like this:
 
    ```js
-   const CONFIG = {
+   window.PORTAL_CONFIG = {
      API_URL: 'PASTE_YOUR_WEB_APP_URL_HERE',
      SITE_NAME: 'পদার্থবিজ্ঞান অনুশীলন বই',
      SUPPORT_CONTACT: 'প্রকাশকের হেল্পলাইন: 01XXXXXXXXX',
+     IMAGE_FOLDER: 'images/',
    };
    ```
 
-2. Replace `PASTE_YOUR_WEB_APP_URL_HERE` with the `/exec` URL from Part 1. Keep the quote marks.
+2. Replace `PASTE_YOUR_WEB_APP_URL_HERE` with the `/exec` URL from Part 1. Keep the quote marks, and keep it all on one line.
 3. Change `SITE_NAME` to your book or brand name, and `SUPPORT_CONTACT` to your helpline. Save the file.
+
+Because your settings live only in `config.js`, you can replace `index.html` and the other files with newer versions later without copying anything over. You can also edit `config.js` directly on GitHub with the pencil ✏️ button.
 
 ### Upload to GitHub
 
 4. Create a free account at [github.com](https://github.com) if you don't have one.
 5. Click **+ > New repository**. Name it, for example, `exam-portal`. Choose **Public** (free GitHub Pages needs a public repository; this is safe because no answers or student data are in these files). Click **Create repository**.
-6. Click **uploading an existing file**, drag in `index.html`, `generator.html` and `README.md`, then click **Commit changes**.
+6. Click **uploading an existing file**, drag in **all the files from this folder** (`config.js`, `index.html`, `print.html`, `generator.html`, `omr-sheet.html`, `omr-draw.js`, `omr-scan.js`, `omr-layout.js`, `README.md`; everything except `Code.gs`), then click **Commit changes**. They must all sit together in the top level of the repository.
 7. Go to the repository's **Settings > Pages**. Under "Build and deployment", set Source to **Deploy from a branch**, Branch to **main** and folder **/ (root)**, then **Save**.
 8. Wait one or two minutes and refresh. GitHub shows your site address, like `https://yourname.github.io/exam-portal/`.
 
@@ -97,7 +105,7 @@ Use a Google account that belongs to your business, because this account will ow
 4. Go back and tap **আবার অনুশীলন করুন**. Submit again. You get results and solutions, but **no new row** appears in Attempts. That's the practice mode.
 5. Open the same link in a different browser. It should ask for the PIN.
 
-When you're happy, **delete the three DEMO rows** from the Books tab (and their rows from Attempts) before selling books.
+When you're happy, **delete the DEMO rows** you don't need from the Books tab (and their rows from Attempts) before selling books. You can keep one as your private admin preview book (Part 8).
 
 ---
 
@@ -124,10 +132,11 @@ One row per question.
 | ExamID | Must match the Exams tab exactly. |
 | QNo | 1, 2, 3… with no gaps. Must match the numbering on the printed OMR sheet. |
 | Question | The question text. |
-| ImageURL | Optional link to a diagram (see below). |
+| ImageURL | Optional picture shown under the question (see "Adding images"). |
 | OptionA–OptionD | The four options (ক, খ, গ, ঘ). |
 | Answer | The correct option: `ক`, `খ`, `গ`, `ঘ` (or `A`–`D`). |
 | Solution | The detailed solution. |
+| SolutionImage | Optional picture shown at the end of the solution. |
 
 **Writing math.** Put math between `\(` and `\)` for inline formulas, and between `\[` and `\]` for a formula on its own line. For example:
 
@@ -144,7 +153,37 @@ Look at the sample questions in the sheet for many more examples.
 - A cell starting with `=` becomes a formula. Wrap math in `\( \)` or start the cell with an apostrophe `'`.
 - Google Sheets turns things like `1:2` into a time and `1/2` into a date. Wrap them in `\( \)`, e.g. `\(1:2\)`.
 
-**Images.** Create a folder named `images` in your GitHub repository, upload the picture there, and use its address in ImageURL, for example `https://exam.yourdomain.com/images/phy02-q5.png`.
+### Adding images
+
+A picture can go in three places:
+
+- **Under the question:** put it in the **ImageURL** column.
+- **At the end of the solution:** put it in the **SolutionImage** column.
+- **Anywhere inside text** (question, any option, or solution): type `[img:file-name.png]` on its own line where the picture should appear. Use this when a solution needs a diagram in the middle, or when the options themselves are graphs.
+
+In each of those places you can write any of these:
+
+| You write | Where the picture lives |
+|---|---|
+| `phy01-q14.png` | In the `images` folder of your GitHub repository (recommended). |
+| `https://…/picture.png` | Any public web address. |
+| A Google Drive share link | Google Drive, shared as "Anyone with the link". Works today, but Google doesn't officially support showing Drive files on other websites, so prefer GitHub for printed books. |
+
+**Uploading pictures to GitHub (recommended):**
+
+1. On your computer, make a folder named `images` and put your pictures in it.
+2. Name the files simply, with no spaces or Bengali letters, for example `phy01-q14.png`, `phy01-q14-sol.png`. Including the exam ID and question number makes them easy to find.
+3. In your GitHub repository, click **Add file > Upload files** and drag the **whole `images` folder** in. Click **Commit changes**.
+4. To add more later, open the `images` folder on GitHub and use **Add file > Upload files** there.
+5. In the sheet, type just the file name, e.g. `phy01-q14.png`.
+
+**Picture tips:**
+- Use **PNG** for diagrams and **JPG** for photos. Keep each file under about 300 KB, around 1000–1400 pixels wide. Free tool: [squoosh.app](https://squoosh.app).
+- Diagrams always show on a white background, so they stay readable when a student's phone is in dark mode.
+- Students can tap any picture to open it full screen, and tap again to zoom in.
+- If a file name is wrong or the file is missing, the portal shows "ছবিটি লোড হয়নি: file-name" in red in place of the picture. Check this with an admin preview book (Part 8) before opening an exam.
+
+**If your Questions tab was created before images were added:** type `SolutionImage` in the first empty header cell of row 1 (any column works). Also paste the newest `Code.gs` into Apps Script and deploy a **New version** (see the note at the end of Part 1).
 
 **Tip:** you can send Claude a question set (Word text, like the sample) and ask for it "as rows for the Questions tab". You'll get rows ready to paste.
 
@@ -162,11 +201,87 @@ Look at the sample questions in the sheet for many more examples.
 
 ---
 
-## Part 6: Running the portal
+## Part 6: OMR sheets and camera scanning
+
+Students can either scan their filled OMR page with the phone camera or tap the bubbles by hand. Scanning only works on sheets made with `omr-sheet.html`, because the scanner knows exactly where every bubble is on that design.
+
+### Make the sheet for each exam
+
+1. Open `https://exam.yourdomain.com/omr-sheet.html`. The **Website address** box fills itself in with your site's address. Check it's the address students will use (your own domain once connected, Part 2).
+2. Fill in the Exam ID (exactly as in the Exams tab), exam name, number of questions and book name. The sheet is **A5 (148 × 210 mm)** and holds up to **60 questions**.
+3. Choose the bubble ink:
+   - **Pink** if the OMR pages are printed in colour (recommended).
+   - **Light grey** if the book is printed in black and white.
+4. Click **Print or save as PDF** (choose "Save as PDF" as the printer) and give the PDF to your book designer. **Download SVG** gives the same page for design software.
+5. Make one sheet per exam. Each sheet has a small QR code that does two jobs:
+   - **Scanning it with any phone camera opens that exam's answer page directly** (the link looks like `https://exam.yourdomain.com/?e=PHY-01&q=20`). The first time on a phone, the student is asked for their book ID and PIN; after that it opens straight away.
+   - It tells the camera scanner which exam the page belongs to, so a student can't submit the wrong exam's sheet by mistake.
+
+   Because the link is printed, make the final sheets only after your own domain is connected, just like the book QR codes.
+
+The number of questions on the sheet must match the number of questions for that exam in the Questions tab. If you later add or remove a question, make a new sheet.
+
+### Printing rules
+
+- **Paper size:** the sheet is A5, the usual size for a practice book page. To test-print at home on A4 paper, print at "Actual size"; scaling the whole page evenly is also fine.
+- **Don't change the design** in the book layout: no resizing of only part of it, no moving bubbles, nothing printed over or next to the four black corner squares. Scaling the whole page evenly (for example to fit a smaller book size) is fine.
+- The four corner squares must print **solid black**.
+- Use plain white or off-white **matte paper**. Glossy paper reflects light into the camera.
+- **Binding matters.** A page that curves into the spine reads badly. The best option is perforated tear-out OMR pages. Otherwise, give the OMR pages a wide inner margin so they lie flat.
+- Before the print run, print one page at home, fill it, and scan it with your admin preview book.
+
+### What students do
+
+1. Fill the OMR page in the book with a black or blue pen, or an HB/2B pencil.
+2. Scan the small QR code on the OMR page with the phone camera (or open the exam from the portal's list), then tap **ক্যামেরা দিয়ে OMR স্ক্যান করুন** to read the whole page.
+3. Hold the phone over the page so all four corner squares are visible. A green frame appears when the page is found; the scanner waits until the phone is steady and reads it automatically. Other buttons on the scan screen:
+   - **এখনই পড়ুন** reads immediately.
+   - **টর্চ** turns on the phone's flashlight (shown only on phones that allow it).
+   - **ক্যামেরা অ্যাপে ছবি তুলুন** opens the phone's own camera app. This gives the sharpest picture (proper autofocus, flash, HDR), so it's the best choice in poor light or if the live scan struggles.
+   - **গ্যালারি থেকে** uses a photo already taken.
+4. The answers appear on screen. Any question the scanner isn't sure about (two bubbles filled, a very light mark, or an erased mark) is highlighted in yellow for the student to check against the paper.
+5. The student checks, fixes anything, and submits as usual.
+
+**Scanning conditions:** the scanner compares pencil marks with the printed black corner squares in the same photo, and measures the paper's brightness next to every bubble. So dim light, yellow bulbs, and shadows across the page are handled; it doesn't need perfect light. What still causes trouble: a bright reflection (glare) over the bubbles, a page curving into the spine, and very faint pencil. Anything uncertain is highlighted for the student to check. The live camera needs a normal browser such as Chrome; some apps' built-in browsers (Facebook, Messenger) block it, but **ক্যামেরা অ্যাপে ছবি তুলুন** still works there.
+
+**Old sheets:** sheets printed from the earlier A4 design won't scan any more; the scanner says so. Print new sheets from `omr-sheet.html`.
+
+**What scanning doesn't change:** students can still correct answers before submitting, so scanning is a convenience, not proof of what was on paper. Your top-100 competition should still be a supervised exam.
+
+---
+
+## Part 7: Printing question papers
+
+`print.html` turns the exams in your Google Sheet into print-ready pages, using exactly the questions, math and pictures students see in the portal. Use it to make the book's question papers, a teacher's answer key, and a solutions section.
+
+1. Make sure one book has **Status `ADMIN`** in the Books tab and is registered with a PIN (open the portal once with that book ID). Part 8 explains admin books.
+2. Open `https://exam.yourdomain.com/print.html` and sign in with that book ID and PIN.
+3. Tick the exams to print. **Select all** prints the whole book in one go. Tick "Include exams that are still hidden" to print papers before they open to students.
+4. Choose the options:
+   - **Paper size:** A5 (same as the OMR sheet) or A4.
+   - **Questions per page:** one or two columns. Two columns suit A4.
+   - **Text size** and **time** (the time is printed in each paper's header; leave it blank to hide it).
+   - **Answer key:** none, after each paper, or all together at the end.
+   - **Detailed solutions:** none, after each paper, or all together at the end.
+   - **OMR sheet:** prints the matching A5 OMR sheet right after each paper, so one PDF can be the whole inside of the book.
+   - **Small QR code on each paper:** opens that exam in the portal, the same link as the OMR sheet's QR.
+5. Click **Make papers**, check the preview, then **Print or save as PDF**. In the print window, choose "Save as PDF", set margins to **Default**, and turn **Headers and footers off**. Page numbers are added automatically.
+
+Each paper shows the book name, exam name, exam code, number of questions, full marks and the marking rule (from `MARK_CORRECT` and `MARK_WRONG` in Settings). Options are laid out four, two or one per line depending on how long they are. A missing picture shows as red text in the preview, so you can fix it before printing.
+
+**For the student book,** print the papers and OMR sheets without the answer key or solutions. For a teacher's edition or an answer booklet, print again with the key and solutions turned on.
+
+**After updating:** this tool needs the newest `Code.gs`. Paste it into Apps Script and deploy a **New version** (Part 1). If the tool says "Your Apps Script is an old version", that step was missed.
+
+---
+
+## Part 8: Running the portal
 
 **A student forgot their PIN.** Confirm it's really them (for example, they call from the registered phone). In the Books tab, clear their **PinHash** cell. When they open the portal, it asks for their registered phone number and a new PIN.
 
 **Block a book** (for example, a pirated copy). Set its **Status** to `BLOCKED`.
+
+**Preview exams before students see them.** Set one book's **Status** to `ADMIN` (for example `DEMO-0001`). That book sees every exam, including ones whose Open box is unticked, so you can check questions, math and pictures. It never saves marks and never appears on the top list. Keep its ID private.
 
 **You find a wrong answer key.** Fix the Answer cell, then click **OMR Portal > Recalculate all scores**. Every stored main attempt is re-marked.
 
@@ -193,7 +308,7 @@ Look at the sample questions in the sheet for many more examples.
 
 | What you see | What to do |
 |---|---|
-| "Portal setup is not finished: paste the Apps Script Web app URL…" | `API_URL` in `index.html` is not set. See Part 2. |
+| "Portal setup is not finished: paste the Apps Script Web app URL…" | `API_URL` in `config.js` is not set, or `config.js` isn't uploaded. The message shows what the page currently sees. See Part 2. |
 | "সার্ভারের সাথে সংযোগ হয়নি" for everyone | Check the deployment has **Who has access: Anyone**, and that the URL ends with `/exec`. |
 | You changed `Code.gs` but nothing changed | Deploy a **New version** (see the note at the end of Part 1). |
 | "Server setup is not finished…" | Run **OMR Portal > 1. Set up sheets**. Don't rename the tabs or the header row. |

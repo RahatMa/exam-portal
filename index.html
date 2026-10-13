@@ -14,21 +14,15 @@
 <script defer src="omr-layout.js?v=a5-3"></script>
 <script defer src="omr-scan.js?v=a5-3"></script>
 
+<script src="config.js?v=1"></script>
 <script>
-/* =========================================================
-   SETTINGS — the only part you need to edit
-   ========================================================= */
-const CONFIG = {
-  // Paste the Web app URL from Apps Script (Deploy > Manage deployments).
-  API_URL: 'https://script.google.com/macros/s/AKfycbwgUvgV8Wh1H0PkRvEATrFAVJn5Fz7TQyJHB-alTYA4WkttWU2Yl96C4mz3z_ftyMdh/exec',
-  // Name shown at the top of every page.
-  SITE_NAME: 'পদার্থবিজ্ঞান অনুশীলন বই',
-  // Shown to students who forget their PIN.
-  SUPPORT_CONTACT: 'প্রকাশকের হেল্পলাইন: 01XXXXXXXXX',
-  // Folder (on this website) where question images live. A sheet cell can then
-  // just say  phy01-q5.png  instead of a full link.
+/* Your settings live in config.js. These are only fallbacks. */
+const CONFIG = Object.assign({
+  API_URL: 'PASTE_YOUR_WEB_APP_URL_HERE',
+  SITE_NAME: 'অনুশীলন পোর্টাল',
+  SUPPORT_CONTACT: '',
   IMAGE_FOLDER: 'images/',
-};
+}, window.PORTAL_CONFIG || {});
 </script>
 
 <style>
@@ -403,11 +397,12 @@ const MESSAGES = {
   NO_MAIN_ATTEMPT: 'এই পরীক্ষার মূল উত্তর এখনো জমা দেওয়া হয়নি।',
   BUSY: 'সার্ভারে এখন অনেক চাপ। কয়েক সেকেন্ড পর আবার চেষ্টা করুন।',
   NETWORK: 'সার্ভারের সাথে সংযোগ হয়নি। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।',
-  CONFIG: 'Portal setup is not finished: paste the Apps Script Web app URL into CONFIG.API_URL in index.html.',
+  CONFIG: 'Portal setup is not finished: paste the Apps Script Web app URL into API_URL in config.js.',
   NOT_SET_UP: 'Server setup is not finished. Run "OMR Portal > Set up sheets" in the Google Sheet.',
 };
 function msg(err) {
   let m = MESSAGES[err.code] || 'কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।';
+  if (err.code === 'CONFIG') m += ' The page currently sees API_URL = "' + ((err.data && err.data.seen) || '(empty)').slice(0, 70) + '". It must start with https://script.google.com/macros/s/ and end with /exec.';
   if (err.code === 'PIN_WRONG' && err.data && err.data.attemptsLeft !== undefined) m += ' আর ' + bn(err.data.attemptsLeft) + ' বার চেষ্টা করা যাবে।';
   return m;
 }
@@ -420,12 +415,14 @@ function busy(on) {
 }
 
 async function api(action, data = {}) {
-  if (!/^https:\/\//.test(CONFIG.API_URL) && !/^http:\/\/localhost/.test(CONFIG.API_URL)) throw Object.assign(new Error('CONFIG'), { code: 'CONFIG' });
+  const API_URL = String(CONFIG.API_URL || '').trim().replace(/^['"‘’“”]+|['"‘’“”]+$/g, '');
+  if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(API_URL) && !/^http:\/\/localhost/.test(API_URL))
+    throw Object.assign(new Error('CONFIG'), { code: 'CONFIG', data: { seen: API_URL } });
   busy(true);
   try {
     let res;
     try {
-      res = await fetch(CONFIG.API_URL, { method: 'POST', body: JSON.stringify(Object.assign({ action }, data)) });
+      res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(Object.assign({ action }, data)) });
     } catch (e) { throw Object.assign(new Error('NETWORK'), { code: 'NETWORK' }); }
     let json;
     try { json = await res.json(); } catch (e) { throw Object.assign(new Error('NETWORK'), { code: 'NETWORK' }); }

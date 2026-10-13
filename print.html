@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Print question papers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="config.js?v=1"></script>
+<script src="omr-layout.js?v=a5-3"></script>
+<script src="omr-draw.js?v=1"></script>
+<style id="pagesize">@page { size: A5; }</style>
+<style>
+/* ---------- the tool (screen only) ---------- */
+:root { --text: #1d2026; --muted: #5d6470; --line: #d9dce2; --desk: #eceef1; --ink: #cc3d78; box-sizing: border-box; }
+*, *::before, *::after { box-sizing: inherit; }
+body { margin: 0; background: var(--desk); color: var(--text); font: 16px/1.55 system-ui, sans-serif; }
+.tool { max-width: 62rem; margin: 0 auto; padding: 1.5rem 1rem 1rem; }
+.tool h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+.tool h2 { font-size: 1.05rem; margin: 0 0 .6rem; }
+.tool p { margin: .25rem 0 1rem; color: var(--muted); }
+.panel { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+.grid { display: grid; gap: .8rem; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+.tool label > span { display: block; font-weight: 600; margin-bottom: .25rem; font-size: .92rem; }
+.tool input:not([type=checkbox]), .tool select { width: 100%; font: inherit; padding: .5rem .65rem; border: 1.5px solid var(--line); border-radius: 6px; background: #fff; }
+.check { display: flex; gap: .5rem; align-items: flex-start; font-size: .95rem; }
+.check input { margin-top: .3rem; }
+.examlist { display: grid; gap: .3rem; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); max-height: 18rem; overflow: auto; }
+.examlist .hidden { color: var(--muted); font-size: .85rem; }
+.actions { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin-top: .8rem; }
+button { font: inherit; font-weight: 600; padding: .55rem 1rem; border-radius: 6px; border: 1.5px solid #2a2d33; background: #2a2d33; color: #fff; cursor: pointer; }
+button.ghost { background: transparent; color: var(--text); border-color: var(--line); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+#msg { font-weight: 600; }
+#msg.err { color: #b3261e; }
+:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+
+/* ---------- the printed document ---------- */
+#doc {
+  --w: 148mm; --mt: 12mm; --mx: 11mm; --mb: 14mm; --fs: 10.5pt;
+  font-family: "Hind Siliguri", "Noto Sans Bengali", "Kohinoor Bangla", sans-serif;
+  font-size: var(--fs); line-height: 1.5; color: #111;
+}
+.serif { font-family: "Noto Serif Bengali", "Hind Siliguri", serif; }
+.exam + .exam, .omrpage, .keysec.newpage, .solsec.newpage { break-before: page; }
+.phead { display: grid; grid-template-columns: 1fr auto; gap: 0 4mm; align-items: start; border-bottom: .6pt solid #111; padding-bottom: 2.5mm; margin-bottom: 3mm; }
+.phead .book { font-size: 1.25em; font-weight: 700; line-height: 1.25; }
+.phead .ename { font-size: 1.08em; font-weight: 700; margin-top: .5mm; }
+.phead .meta { display: flex; flex-wrap: wrap; gap: 0 5mm; font-size: .88em; color: #333; margin-top: 1mm; }
+.phead .rule { font-size: .85em; color: #333; margin-top: 1mm; }
+.phead .qr { text-align: center; font-size: .62em; color: #444; line-height: 1.2; width: 17mm; }
+.phead .qr svg { display: block; width: 17mm; height: 17mm; margin-bottom: .8mm; }
+.qs.two { columns: 2; column-gap: 6mm; column-rule: .4pt solid #bbb; }
+.q { display: grid; grid-template-columns: 1.7em 1fr; gap: 0 1mm; break-inside: avoid; padding: 1.2mm 0 1.8mm; }
+.q .n { font-weight: 700; }
+.q .t { overflow-wrap: anywhere; }
+.q img, .sol img { display: block; max-width: 100%; max-height: 55mm; margin: 1.2mm 0; }
+.opts { display: grid; gap: .6mm 3mm; margin-top: .8mm; }
+.opts.c4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.opts.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.opts.c1 { grid-template-columns: 1fr; }
+.opt { display: grid; grid-template-columns: auto 1fr; gap: 0 1.2mm; }
+.opt b { font-weight: 600; }
+.opt img { max-height: 30mm; }
+.opts.measure { display: block; }
+.opts.measure .opt { display: inline-grid; white-space: nowrap; }
+.keysec h3, .solsec h3 { font-size: 1.1em; margin: 0 0 2mm; border-bottom: .6pt solid #111; padding-bottom: 1mm; }
+.keysec .kname, .solsec .kname { font-weight: 700; margin: 2.5mm 0 1mm; break-after: avoid; }
+.key { display: grid; grid-template-columns: repeat(5, 1fr); border-top: .4pt solid #999; border-left: .4pt solid #999; font-size: .95em; margin-bottom: 3mm; }
+.key span { border-right: .4pt solid #999; border-bottom: .4pt solid #999; padding: .6mm 1.5mm; }
+.sol { break-inside: avoid; padding: 1.2mm 0 2mm; border-bottom: .3pt dashed #bbb; }
+.sol .ans { font-weight: 700; }
+.katex { font-size: 1.05em; }
+.katex-display { margin: .8mm 0; overflow: hidden; }
+.omrpage { page: omr; display: flex; justify-content: center; align-items: flex-start; }
+.omrpage svg { width: 148mm; height: 210mm; display: block; }
+
+@page { margin: 12mm 11mm 14mm; @bottom-center { content: counter(page); font-size: 8.5pt; color: #555; } }
+@page omr { margin: 0; @bottom-center { content: none; } }
+
+@media screen {
+  #doc { width: calc(var(--w)); margin: 0 auto 3rem; }
+  #doc > section { background: #fff; padding: var(--mt) var(--mx) var(--mb); box-shadow: 0 0 0 1px var(--line); margin-bottom: 6mm; }
+  #doc > section.omrpage { padding: 0; }
+}
+@media print {
+  body { background: #fff; }
+  .tool { display: none !important; }
+  #doc { width: auto; }
+}
+</style>
+</head>
+<body>
+
+<div class="tool">
+  <h1>Print question papers</h1>
+  <p>Makes print-ready question papers from the exams in your Google Sheet: the questions, an answer key, the detailed solutions, and the OMR sheet. Sign in with a book whose Status is <b>ADMIN</b> in the Books tab.</p>
+
+  <div class="panel" id="signin">
+    <h2>1. Sign in</h2>
+    <form id="sf" class="grid">
+      <label><span>Admin book ID</span><input name="id" autocomplete="off" required></label>
+      <label><span>PIN</span><input name="pin" type="password" inputmode="numeric" required></label>
+      <div class="actions" style="margin:0;align-self:end"><button>Sign in</button></div>
+    </form>
+  </div>
+
+  <div class="panel" id="choose" hidden>
+    <h2>2. Choose exams</h2>
+    <div class="actions" style="margin:0 0 .6rem">
+      <button type="button" class="ghost" id="all">Select all</button>
+      <button type="button" class="ghost" id="none">Clear</button>
+      <button type="button" class="ghost" id="signout">Sign out</button>
+    </div>
+    <div class="examlist" id="exams"></div>
+  </div>
+
+  <div class="panel" id="opts" hidden>
+    <h2>3. Options</h2>
+    <div class="grid">
+      <label><span>Paper size</span><select id="size"><option value="A5">A5 (same as the OMR sheet)</option><option value="A4">A4</option></select></label>
+      <label><span>Questions per page</span><select id="cols"><option value="1">One column</option><option value="2">Two columns</option></select></label>
+      <label><span>Text size</span><select id="fs"><option value="s">Small</option><option value="m" selected>Normal</option><option value="l">Large</option></select></label>
+      <label><span>Time for each exam (minutes, optional)</span><input id="time" type="number" min="1" placeholder="e.g. 20"></label>
+      <label><span>Answer key</span><select id="key"><option value="none">Don't print</option><option value="each">After each paper</option><option value="end" selected>All together at the end</option></select></label>
+      <label><span>Detailed solutions</span><select id="sol"><option value="none" selected>Don't print</option><option value="each">After each paper</option><option value="end">All together at the end</option></select></label>
+      <label><span>OMR sheet</span><select id="omr"><option value="none">Don't print</option><option value="pink" selected>After each paper (pink ink)</option><option value="grey">After each paper (grey ink)</option></select></label>
+      <label><span>Website address (for QR codes)</span><input id="site" placeholder="https://exam.yourdomain.com/"></label>
+    </div>
+    <div style="margin-top:.8rem;display:grid;gap:.3rem">
+      <label class="check"><input type="checkbox" id="qr" checked><span>Small QR code on each paper that opens the exam in the portal</span></label>
+      <label class="check"><input type="checkbox" id="hidden"><span>Include exams that are still hidden from students</span></label>
+    </div>
+    <div class="actions">
+      <button id="make">Make papers</button>
+      <button id="print" class="ghost" disabled>Print or save as PDF</button>
+      <span id="msg" aria-live="polite"></span>
+    </div>
+  </div>
+</div>
+
+<div id="doc"></div>
+
+<script>
+(function () {
+'use strict';
+const CFG = Object.assign({ API_URL: '', SITE_NAME: '', IMAGE_FOLDER: 'images/' }, window.PORTAL_CONFIG || {});
+const API_URL = String(CFG.API_URL || '').trim();
+const $ = s => document.querySelector(s);
+const LABELS = ['ক', 'খ', 'গ', 'ঘ'];
+const KEYS = ['A', 'B', 'C', 'D'];
+const bn = v => String(v).replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+let session = store.get('omr_print_session') || {};
+let exams = [];
+
+function say(t, err) { const m = $('#msg'); m.textContent = t || ''; m.className = err ? 'err' : ''; }
+
+const ERRORS = {
+  BOOK_NOT_FOUND: 'No book with this ID.',
+  PIN_WRONG: 'Wrong PIN.',
+  PIN_LOCKED: 'Too many wrong PINs. Try again in an hour.',
+  ADMIN_ONLY: 'This book is not an admin book. Set its Status to ADMIN in the Books tab.',
+  NOT_REGISTERED: 'Register this book in the portal first (open the portal with this book ID).',
+  PIN_NOT_SET: 'Set a PIN for this book in the portal first.',
+  EXAM_NOT_FOUND: 'One of the chosen exams was not found.',
+  UNKNOWN_ACTION: 'Your Apps Script is an old version. Paste the new Code.gs and deploy a New version (see README Part 1).',
+  NETWORK: 'Could not reach the server. Check the internet connection.',
+  CONFIG: 'API_URL in config.js is not set.',
+};
+async function api(action, data) {
+  if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(API_URL) && !/^http:\/\/localhost/.test(API_URL)) throw { code: 'CONFIG' };
+  let res;
+  try { res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(Object.assign({ action }, data)) }); }
+  catch (e) { throw { code: 'NETWORK' }; }
+  const j = await res.json().catch(() => ({ ok: false, error: 'NETWORK' }));
+  if (!j.ok) throw { code: j.error, data: j };
+  return j;
+}
+const errText = e => ERRORS[e.code] || ('Error: ' + (e.code || e.message || e));
+
+/* ---------- sign in ---------- */
+async function signIn() {
+  try {
+    const r = await api('login', { bookId: session.id, pin: session.pin });
+    if (r.state !== 'ok') throw { code: r.state === 'register' ? 'NOT_REGISTERED' : 'PIN_NOT_SET' };
+    if (!r.admin) throw { code: 'ADMIN_ONLY' };
+    exams = r.exams;
+    $('#signin').hidden = true; $('#choose').hidden = false; $('#opts').hidden = false;
+    renderExamList();
+  } catch (e) {
+    $('#signin').hidden = false; $('#choose').hidden = true; $('#opts').hidden = true;
+    store.del('omr_print_session');
+    const box = $('#signin');
+    let p = box.querySelector('.err'); if (!p) { p = document.createElement('p'); p.className = 'err'; p.style.color = '#b3261e'; box.appendChild(p); }
+    p.textContent = errText(e);
+  }
+}
+$('#sf').onsubmit = e => {
+  e.preventDefault();
+  session = { id: e.target.id.value.trim().toUpperCase(), pin: e.target.pin.value.trim() };
+  store.set('omr_print_session', session);
+  signIn();
+};
+$('#signout').onclick = () => { store.del('omr_print_session'); session = {}; location.reload(); };
+
+function renderExamList() {
+  const showHidden = $('#hidden').checked;
+  const prev = new Set([...document.querySelectorAll('#exams input:checked')].map(i => i.value));
+  $('#exams').innerHTML = exams.filter(e => showHidden || !e.hidden).map(e =>
+    `<label class="check"><input type="checkbox" value="${esc(e.id)}" ${prev.has(e.id) ? 'checked' : ''}>
+      <span>${esc(e.name)} <span class="hidden">(${esc(e.id)}, ${e.numQuestions} Q${e.hidden ? ', hidden' : ''})</span></span></label>`).join('')
+    || '<p>No exams yet. Add them in the Exams tab.</p>';
+}
+$('#hidden').onchange = renderExamList;
+$('#all').onclick = () => document.querySelectorAll('#exams input').forEach(i => { i.checked = true; });
+$('#none').onclick = () => document.querySelectorAll('#exams input').forEach(i => { i.checked = false; });
+$('#size').onchange = () => { $('#cols').value = $('#size').value === 'A4' ? '2' : '1'; };
+
+/* ---------- text, math and pictures (same rules as the portal) ---------- */
+function imgSrc(ref) {
+  ref = String(ref ?? '').trim();
+  if (!ref) return '';
+  const drive = ref.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{20,})/);
+  if (drive) return 'https://drive.google.com/thumbnail?id=' + drive[1] + '&sz=w2000';
+  if (/^https:\/\//i.test(ref)) return ref;
+  if (/^[\w-][\w\-./]*\.(png|jpe?g|gif|webp|svg)$/i.test(ref) && !ref.includes('..')) return (CFG.IMAGE_FOLDER || 'images/') + ref;
+  return '';
+}
+function imgTag(ref) { const s = imgSrc(ref); return s ? `<img src="${esc(s)}" alt="">` : ''; }
+function rich(s) {
+  let t = String(s ?? '').replace(/\r/g, '');
+  t = t.replace(/\\\[([\s\S]*?)\\\]/g, m => m.replace(/\n/g, ' '));
+  t = t.replace(/\n?(\\\[[\s\S]*?\\\])\n?/g, '$1');
+  t = t.replace(/\n?(\[img:[^\]]*\])\n?/gi, '$1');
+  return esc(t).replace(/\[img:\s*([^\]\s]+)\s*\]/gi, (m, r) => imgTag(r.replace(/&amp;/g, '&'))).replace(/\n/g, '<br>');
+}
+function siteBase() {
+  let s = $('#site').value.trim();
+  if (s && !s.endsWith('/')) s += '/';
+  return s;
+}
+function qrSvg(text) {
+  const q = qrcode(0, 'M'); q.addData(text); q.make();
+  const m = q.getModuleCount(); let d = '';
+  for (let r = 0; r < m; r++) for (let c = 0; c < m; c++) if (q.isDark(r, c)) d += `M${c} ${r}h1v1h-1z`;
+  return `<svg viewBox="-2 -2 ${m + 4} ${m + 4}" xmlns="http://www.w3.org/2000/svg"><rect x="-2" y="-2" width="${m + 4}" height="${m + 4}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+
+/* ---------- building the document ---------- */
+function paperHtml(ex, o, marking) {
+  const n = ex.questions.length;
+  const mc = marking.correct, mw = marking.wrong;
+  const rule = `প্রতিটি প্রশ্নের মান ${bn(mc)}।` + (mw < 0 ? ` প্রতিটি ভুল উত্তরের জন্য ${bn(Math.abs(mw))} নম্বর কাটা যাবে।` : '') +
+    ' সঠিক উত্তরের বৃত্তটি OMR শিটে ভরাট করুন।';
+  const qr = o.qr && o.site ? `<div class="qr">${qrSvg(OMR_LAYOUT.qrText(ex.id, n, o.site))}উত্তর জমা দিতে স্ক্যান করুন</div>` : '<div></div>';
+  const qs = ex.questions.map((q, i) => {
+    const opts = q.options.map((t, j) => `<div class="opt"><b>(${LABELS[j]})</b><span>${rich(t)}</span></div>`).join('');
+    return `<div class="q"><span class="n">${bn(i + 1)}.</span><div><div class="t">${rich(q.question)}</div>${imgTag(q.image)}<div class="opts c4">${opts}</div></div></div>`;
+  }).join('');
+  return `<section class="exam">
+    <header class="phead"><div>
+      <div class="book serif">${esc(o.book)}</div>
+      <div class="ename">${esc(ex.name)}</div>
+      <div class="meta"><span>পরীক্ষা কোড: ${esc(ex.id)}</span><span>প্রশ্ন: ${bn(n)}টি</span><span>পূর্ণমান: ${bn(+(n * mc).toFixed(2))}</span>${o.time ? `<span>সময়: ${bn(o.time)} মিনিট</span>` : ''}</div>
+      <div class="rule">${rule}</div>
+    </div>${qr}</header>
+    <div class="qs ${o.cols === '2' ? 'two' : ''}">${qs}</div>
+  </section>`;
+}
+function keyHtml(list, title) {
+  return list.map(ex => `<div class="kname">${esc(ex.name)} <span style="font-weight:400">(${esc(ex.id)})</span></div>
+    <div class="key">${ex.questions.map((q, i) => `<span>${bn(i + 1)}. ${LABELS[KEYS.indexOf(q.answer)] || '?'}</span>`).join('')}</div>`).join('');
+}
+function solHtml(list) {
+  return list.map(ex => `<div class="kname">${esc(ex.name)} <span style="font-weight:400">(${esc(ex.id)})</span></div>` +
+    ex.questions.map((q, i) => `<div class="sol"><span class="ans">${bn(i + 1)}. সঠিক উত্তর: (${LABELS[KEYS.indexOf(q.answer)] || '?'}) ${rich(q.options[KEYS.indexOf(q.answer)] || '')}</span>
+      ${q.solution ? `<div>${rich(q.solution)}</div>` : ''}${imgTag(q.solutionImage)}</div>`).join('')).join('');
+}
+function omrHtml(ex, o) {
+  return `<section class="omrpage">${OMR_DRAW.svg({ examId: ex.id, examName: ex.name, n: ex.questions.length, book: o.book, site: o.site, ink: o.omr })}</section>`;
+}
+
+$('#make').onclick = async () => {
+  const ids = [...document.querySelectorAll('#exams input:checked')].map(i => i.value);
+  if (!ids.length) return say('Choose at least one exam.', true);
+  const o = {
+    size: $('#size').value, cols: $('#cols').value, fs: $('#fs').value, time: parseInt($('#time').value, 10) || 0,
+    key: $('#key').value, sol: $('#sol').value, omr: $('#omr').value, qr: $('#qr').checked,
+    site: siteBase(), book: CFG.SITE_NAME || '',
+  };
+  if ((o.omr !== 'none' || o.qr) && !/^https:\/\//.test(o.site)) return say('Enter your website address (https://…) for the QR codes, or turn the QR code and OMR sheet off.', true);
+  const pt = { s: 9.5, m: 10.5, l: 11.5 }[o.fs] * (o.size === 'A4' ? 1.05 : 1);
+
+  say('Loading questions…'); $('#print').disabled = true;
+  let r;
+  try { r = await api('paper', { bookId: session.id, pin: session.pin, examIds: ids }); }
+  catch (e) { return say(errText(e), true); }
+
+  const empty = r.exams.filter(ex => !ex.questions.length);
+  const list = r.exams.filter(ex => ex.questions.length);
+  if (!list.length) return say('The chosen exams have no questions yet.', true);
+
+  const doc = $('#doc');
+  doc.style.setProperty('--w', o.size === 'A4' ? '210mm' : '148mm');
+  doc.style.setProperty('--fs', pt + 'pt');
+  $('#pagesize').textContent = `@page { size: ${o.size}; }`;
+
+  let html = '';
+  try {
+    list.forEach(ex => {
+      html += paperHtml(ex, o, r.marking);
+      if (o.key === 'each') html += `<section class="keysec newpage"><h3>উত্তরমালা</h3>${keyHtml([ex])}</section>`;
+      if (o.sol === 'each') html += `<section class="solsec newpage"><h3>সমাধান</h3>${solHtml([ex])}</section>`;
+      if (o.omr !== 'none') html += omrHtml(ex, o);
+    });
+    if (o.key === 'end') html += `<section class="keysec newpage"><h3>উত্তরমালা</h3>${keyHtml(list)}</section>`;
+    if (o.sol === 'end') html += `<section class="solsec newpage"><h3>সমাধান</h3>${solHtml(list)}</section>`;
+  } catch (e) { return say(e.message, true); }
+  doc.innerHTML = html;
+
+  say('Preparing math and pictures…');
+  if (window.renderMathInElement) {
+    renderMathInElement(doc, { delimiters: [{ left: '\\[', right: '\\]', display: true }, { left: '$$', right: '$$', display: true }, { left: '\\(', right: '\\)', display: false }], throwOnError: false });
+  }
+  const imgs = [...doc.querySelectorAll('img')];
+  await Promise.all(imgs.map(im => im.decode().catch(() => { im.replaceWith(Object.assign(document.createElement('span'), { textContent: '[ছবি পাওয়া যায়নি: ' + im.getAttribute('src') + ']', style: 'color:#b3261e' })); })));
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  layoutOptions(doc);
+  $('#print').disabled = false;
+  say(`Ready: ${list.length} paper(s), ${list.reduce((a, ex) => a + ex.questions.length, 0)} questions.` +
+    (empty.length ? ` Skipped (no questions): ${empty.map(e => e.id).join(', ')}.` : '') + ' Check the preview, then print.');
+  doc.scrollIntoView({ behavior: 'smooth' });
+};
+// Measure each question's options as typeset, then use 4, 2 or 1 per line.
+function layoutOptions(doc) {
+  doc.querySelectorAll('.opts').forEach(box => {
+    box.className = 'opts measure';
+    const widths = [...box.children].map(c => c.getBoundingClientRect().width);
+    box.className = 'opts';
+    const avail = box.getBoundingClientRect().width;
+    const gap = parseFloat(getComputedStyle(box).columnGap) || 0;
+    const w = Math.max(...widths) + 2;
+    box.classList.add(4 * w + 3 * gap <= avail ? 'c4' : 2 * w + gap <= avail ? 'c2' : 'c1');
+  });
+}
+$('#print').onclick = () => window.print();
+
+/* ---------- start ---------- */
+if (/^https:/.test(location.protocol)) $('#site').value = location.href.replace(/[?#].*$/, '').replace(/print\.html$/, '');
+if (session.id && session.pin) signIn();
+})();
+</script>
+</body>
+</html>
