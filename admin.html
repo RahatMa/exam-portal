@@ -12,6 +12,8 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script defer src="docx-import.js?v=1"></script>
 <script src="config.js?v=1"></script>
 <style>
 :root {
@@ -185,6 +187,7 @@ td a { color: var(--ink-text); font-weight: 600; }
 'use strict';
 const CFG = Object.assign({ API_URL: '', SITE_NAME: 'Portal' }, window.PORTAL_CONFIG || {});
 const API_URL = String(CFG.API_URL || '').trim();
+const ADMIN_VERSION = '2.4';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = {
@@ -282,7 +285,7 @@ function centerCard(html) { $('#root').innerHTML = `<div class="center"><div cla
 
 function showSignIn(error) {
   centerCard(`
-    <div><h1>${esc(CFG.SITE_NAME)}</h1><p class="lede" style="margin:0">Admin sign-in</p></div>
+    <div><h1>${esc(CFG.SITE_NAME)}</h1><p class="lede" style="margin:0">Admin sign-in · version ${ADMIN_VERSION}</p></div>
     ${error ? `<p class="alert" role="alert">${esc(error)}</p>` : ''}
     <form id="f" class="stack">
       <label class="f"><span>Email</span><input class="t" name="email" type="email" autocomplete="username" required autofocus></label>
@@ -345,7 +348,7 @@ function shell(page, html) {
     <nav class="side" aria-label="Admin">
       <div class="brand"><small>Admin</small>${esc(CFG.SITE_NAME)}</div>
       ${NAV.filter(n => !n.super || me.role === 'super').map(n => `<a href="${n.href || '#/' + n.id}" ${n.id === page ? 'aria-current="page"' : ''}>${n.label}</a>`).join('')}
-      <div class="me"><b>${esc(me.name)}</b>${me.role === 'super' ? 'Super admin' : 'Editor'} · <button class="link" id="out">Sign out</button></div>
+      <div class="me"><b>${esc(me.name)}</b>${me.role === 'super' ? 'Super admin' : 'Editor'} · <button class="link" id="out">Sign out</button><br><small>Admin version ${ADMIN_VERSION}</small></div>
     </nav>
     <main id="main">${html}</main></div>`;
   $('#out').onclick = signOut;
@@ -355,6 +358,7 @@ function route() {
   if (!me) return boot();
   const [page, arg] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
   if (page === 'questions') return viewQuestions(arg);
+  if (page === 'import') return viewImport(arg);
   if (page === 'results') return viewResults(arg);
   if (page === 'bookids' && me.role === 'super') return viewBookIds();
   if (page === 'students' && me.role === 'super') return viewStudents();
@@ -564,9 +568,11 @@ function viewAccount() {
    ========================================================= */
 const LABELS = ['ক', 'খ', 'গ', 'ঘ'], KEYS = ['A', 'B', 'C', 'D'];
 const bn = v => String(v).replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
+const localImgs = {};   // picture name → preview address, for pictures not yet live on the site
 function imgSrc(ref) {
   ref = String(ref ?? '').trim();
   if (!ref) return '';
+  if (localImgs[ref]) return localImgs[ref];
   const drive = ref.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{20,})/);
   if (drive) return 'https://drive.google.com/thumbnail?id=' + drive[1] + '&sz=w2000';
   if (/^https:\/\//i.test(ref)) return ref;
@@ -647,7 +653,7 @@ async function viewQuestions(examId) {
   examId = examId || (qData && qData.exam.id) || '';
   $('#main').innerHTML = `
     <div class="row" style="margin-bottom:.2rem"><h1>Questions</h1></div>
-    <p class="lede">Choose an exam to see, add and edit its questions. Word upload comes in the next update.</p>
+    <p class="lede">Choose an exam to see, add and edit its questions, or upload a Word file of questions.</p>
     <div class="row" style="margin-bottom:1rem"><select class="t" id="pick" style="max-width:34rem">${examOptions(examId)}</select></div>
     <div id="qarea"></div>`;
   $('#pick').onchange = e => { location.hash = '#/questions/' + encodeURIComponent(e.target.value); };
@@ -665,6 +671,7 @@ function renderQuestions() {
         <div><h2>${esc(d.exam.name)}</h2><span class="muted"><code>${esc(d.exam.id)}</code> · ${esc(d.exam.titleName)} › ${esc(d.exam.subjectName)} · ${d.questions.length} question${d.questions.length === 1 ? '' : 's'} · ${d.exam.open ? 'open to students' : 'hidden from students'}</span></div>
         <span class="spacer"></span>
         <a class="btn ghost sm" href="index.html?e=${encodeURIComponent(d.exam.id)}" target="_blank" rel="noopener" title="Opens the portal; use an admin preview book">Preview in portal</a>
+        <a class="btn ghost sm" href="#/import/${encodeURIComponent(d.exam.id)}" ${locked ? 'aria-disabled="true" style="pointer-events:none;opacity:.45"' : ''}>Upload Word file</a>
         <button class="btn sm" id="addQ" ${locked ? 'disabled' : ''}>+ Add question</button>
       </div>
       ${locked ? `<p class="note">${d.attempts} student result(s) exist for this exam. You can edit questions and answers (scores are recalculated automatically when an answer changes), but you can't add, remove or reorder questions.</p>` : ''}
@@ -704,26 +711,38 @@ const MATH_SNIPPETS = [
   ['Inline math', '\\(', '\\)'], ['Own line', '\\[', '\\]'], ['a/b', '\\frac{', '}{}'], ['x²', '^{', '}'], ['x₁', '_{', '}'],
   ['√', '\\sqrt{', '}'], ['×', '\\times ', ''], ['θ', '\\theta ', ''], ['Δ', '\\Delta ', ''], ['π', '\\pi ', ''], ['unit', '\\mathrm{', '}'],
 ];
-function questionDialog(index) {
-  const q = index === null ? { question: '', image: '', options: ['', '', '', ''], answer: '', solution: '', solutionImage: '' } : qData.questions[index];
+// local = { q, title, examId, onSave(data) } edits a question that isn't saved yet (Word import).
+function questionDialog(index, local) {
+  const q = local ? local.q : index === null ? { question: '', image: '', options: ['', '', '', ''], answer: '', solution: '', solutionImage: '' } : qData.questions[index];
   const no = index === null ? '' : index + 1;
-  dialog(`<h2>${index === null ? 'Add a question' : 'Edit question ' + (index + 1)}</h2>
+  const examForPics = local ? local.examId : qData.exam.id;
+  const picBtn = (field, label) => `<button type="button" class="btn ghost sm" data-pic="${field}" ${cat && cat.uploads ? '' : 'disabled title="Set up picture upload in Settings first"'}>${label}</button>`;
+  dialog(`<h2>${local ? local.title : index === null ? 'Add a question' : 'Edit question ' + (index + 1)}</h2>
     <div class="editor">
       <div class="stack">
         <div><span class="muted" style="font-size:.85rem">Math: put it between <code>\\(</code> and <code>\\)</code>. Buttons insert at the cursor.</span>
-          <div class="mathbar">${MATH_SNIPPETS.map((m, i) => `<button type="button" data-snip="${i}">${esc(m[0])}</button>`).join('')}</div></div>
+          <div class="mathbar">${MATH_SNIPPETS.map((m, i) => `<button type="button" data-snip="${i}">${esc(m[0])}</button>`).join('')}<button type="button" data-pic="@inline" ${cat && cat.uploads ? '' : 'disabled title="Set up picture upload in Settings first"'}>Picture in text…</button></div></div>
         <label class="f"><span>Question</span><textarea class="t" name="question" rows="3">${esc(q.question)}</textarea></label>
-        <label class="f"><span>Picture under the question (optional)</span><input class="t" name="image" value="${esc(q.image)}" placeholder="phy02-q5.png"><small>A file name in your site's images folder, or a link.</small></label>
+        <div><label class="f"><span>Picture under the question (optional)</span><input class="t" name="image" value="${esc(q.image)}" placeholder="phy02-q5.png"></label>
+          <div class="row" style="margin-top:.35rem">${picBtn('image', 'Upload picture…')}<small class="muted">${cat && cat.uploads ? 'Or type a file name from your images folder.' : 'Picture upload isn’t set up yet (Settings). You can type a file name from your images folder.'}</small></div></div>
         ${LABELS.map((l, j) => `<label class="f"><span>Option (${l})</span><input class="t" name="o${j}" value="${esc(q.options[j])}"></label>`).join('')}
         <div><span style="font-weight:600;font-size:.88rem;display:block;margin-bottom:.3rem">Correct answer</span>
           <div class="ansrow" role="radiogroup" aria-label="Correct answer">${LABELS.map((l, j) => `<label><input type="radio" name="answer" value="${KEYS[j]}" ${q.answer === KEYS[j] ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
         <label class="f"><span>Solution / explanation</span><textarea class="t" name="solution" rows="5">${esc(q.solution)}</textarea></label>
-        <label class="f"><span>Picture at the end of the solution (optional)</span><input class="t" name="solutionImage" value="${esc(q.solutionImage)}"></label>
+        <div><label class="f"><span>Picture at the end of the solution (optional)</span><input class="t" name="solutionImage" value="${esc(q.solutionImage)}"></label>
+          <div class="row" style="margin-top:.35rem">${picBtn('solutionImage', 'Upload picture…')}</div></div>
+        <input type="file" accept="image/*" id="picfile" hidden>
       </div>
       <div><div class="preview" id="pv" aria-live="polite"></div></div>
-    </div>${dlgButtons(index === null ? 'Add question' : 'Save')}`,
+    </div>${dlgButtons(local ? 'Done' : index === null ? 'Add question' : 'Save')}`,
   async (v, f) => {
     const data = { question: f.question.value, image: f.image.value, options: [0, 1, 2, 3].map(j => f['o' + j].value), answer: (f.querySelector('[name=answer]:checked') || {}).value || '', solution: f.solution.value, solutionImage: f.solutionImage.value };
+    if (local) {
+      if (!data.question.trim() && !data.image.trim()) throw { code: 'Q_EMPTY' };
+      if (data.options.some(o => !o.trim())) throw { code: 'Q_OPTIONS' };
+      if (!data.answer) throw { code: 'Q_ANSWER' };
+      local.onSave(data); return;
+    }
     qData = await api('qSave', { examId: qData.exam.id, no, q: data });
     renderQuestions(); cat = null;
     toast(index === null ? 'Question added' : 'Question saved');
@@ -753,6 +772,23 @@ function questionDialog(index) {
       }, 150);
     };
     f.addEventListener('input', update); f.addEventListener('change', update);
+    // picture upload buttons
+    let picTarget = null;
+    f.querySelectorAll('[data-pic]').forEach(b => b.onclick = () => { picTarget = b.dataset.pic === '@inline' ? { inline: lastField } : { field: b.dataset.pic }; $('#picfile').click(); });
+    $('#picfile').onchange = async e => {
+      const file = e.target.files[0]; e.target.value = '';
+      if (!file || !picTarget) return;
+      const box = f.querySelector('.err'); box.hidden = true;
+      try {
+        toast('Uploading picture…');
+        const name = await uploadPicture(file, examForPics);
+        if (picTarget.inline) {
+          const el = picTarget.inline, at = el.selectionStart ?? el.value.length;
+          el.value = el.value.slice(0, at) + '\n[img:' + name + ']\n' + el.value.slice(at);
+        } else f[picTarget.field].value = name;
+        update(); toast('Picture uploaded');
+      } catch (err) { box.hidden = false; box.textContent = errText(err); }
+    };
     update();
   });
 }
@@ -985,8 +1021,8 @@ async function viewStudents() {
    ========================================================= */
 async function viewSettings() {
   shell('settings', '<p class="muted">Loading…</p>');
-  let s;
-  try { s = (await api('settingsGet')).settings; } catch (e) { return pageError(e); }
+  let s, gh;
+  try { const r = await api('settingsGet'); s = r.settings; gh = r.github; } catch (e) { return pageError(e); }
   $('#main').innerHTML = `<h1>Settings</h1><p class="lede">These apply to the whole site.</p>
     <form class="card stack" id="sf" style="max-width:40rem">
       <label class="f"><span>Website address</span><input class="t" name="site" value="${esc(s.siteUrl)}" placeholder="https://exam.yourdomain.com/"><small>Book QR codes point here. Set it before making book IDs; printed QR codes can't change later.</small></label>
@@ -1010,9 +1046,263 @@ async function viewSettings() {
     try { await api('settingsSave', { settings: { siteUrl: f.site.value.trim(), markCorrect: f.mc.value, markWrong: f.mw.value, published: f.pub.checked, size: f.size.value } }); toast('Settings saved'); cat = null; }
     catch (err) { box.hidden = false; box.textContent = errText(err); }
   };
+  if (gh) $('#main').appendChild(githubSettings(gh));
   $('#rc').onclick = async () => {
     try { const r = await api('recalcAll'); toast(`${r.changed} submission(s) changed`); } catch (e) { toast(errText(e)); }
   };
+}
+
+/* =========================================================
+   PICTURE UPLOAD (to the images folder of your GitHub site)
+   ========================================================= */
+Object.assign(ERR, {
+  GH_NOT_SET: 'Picture upload isn’t set up. A super admin can set it up in Settings › Picture upload.',
+  GH_AUTH: 'GitHub refused the access key. It may be wrong or expired; a super admin can enter a new one in Settings.',
+  GH_READONLY: 'The GitHub access key can read but not write. Give it "Contents: Read and write" permission.',
+  GH_REPO: 'GitHub repository not found. Check the repository name in Settings (like yourname/exam-portal).',
+  GH_BAD_REPO: 'Repository should look like yourname/exam-portal.',
+  GH_ERROR: 'GitHub didn’t accept the picture. Try again in a minute.',
+  IMG_TOO_BIG: 'That picture is too large even after shrinking. Use a smaller picture.',
+  IMG_BAD_NAME: 'Picture name problem. Try again.',
+  Q_INVALID: 'A question is incomplete. Fix the questions marked in red first.',
+  NOT_DOCX: 'This isn’t a Word .docx file. In Word, use File › Save As › Word Document (.docx).',
+  JSZIP_MISSING: 'The Word reader didn’t load. Check the internet connection and reload the page.',
+  BAD_PICTURE: 'This picture format can’t be read. Save it as PNG or JPG and try again.',
+});
+
+// Talks to GitHub directly from the browser (no Google permission needed).
+let ghCache = null;
+async function ghAccess(fresh) {
+  if (!ghCache || fresh) ghCache = await api('ghAccess');
+  return ghCache;
+}
+async function ghRequest(g, path, method, body) {
+  let res;
+  try {
+    res = await fetch('https://api.github.com/repos/' + g.repo + path, {
+      method: method || 'GET',
+      headers: { Authorization: 'Bearer ' + g.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (e) { throw { code: 'NETWORK' }; }
+  const data = await res.json().catch(() => ({}));
+  return { code: res.status, data };
+}
+function ghFail(code) {
+  if (code === 401) throw { code: 'GH_AUTH' };
+  if (code === 403) throw { code: 'GH_READONLY' };
+  if (code === 404) throw { code: 'GH_REPO' };
+  throw { code: 'GH_ERROR' };
+}
+async function githubTest() {
+  const g = await ghAccess(true);
+  const r = await ghRequest(g, '');
+  if (r.code !== 200) ghFail(r.code);
+  if (r.data.permissions && !r.data.permissions.push) throw { code: 'GH_READONLY' };
+  return { repo: r.data.full_name, branch: g.branch };
+}
+
+// Shrinks a picture if needed, uploads it, returns its file name.
+async function uploadPicture(fileOrBlob, examId, hint) {
+  const bmp = await createImageBitmap(fileOrBlob).catch(() => { throw { code: 'BAD_PICTURE' }; });
+  const k = Math.min(1, 1400 / bmp.width);
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  const ctx = c.getContext('2d');
+  const isPhoto = /jpe?g/i.test(fileOrBlob.type || '');
+  if (isPhoto) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); }
+  ctx.drawImage(bmp, 0, 0, c.width, c.height);
+  let url = c.toDataURL(isPhoto ? 'image/jpeg' : 'image/png', 0.86), ext = isPhoto ? 'jpg' : 'png';
+  if (url.length > 2.2e6) {
+    const c2 = document.createElement('canvas'); c2.width = c.width; c2.height = c.height;
+    const x = c2.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c2.width, c2.height); x.drawImage(c, 0, 0);
+    url = c2.toDataURL('image/jpeg', 0.85); ext = 'jpg';
+  }
+  const g = await ghAccess();
+  const base = (String(examId || 'pic').toLowerCase().replace(/[^a-z0-9-]+/g, '-') + '-' + (hint || Date.now().toString(36))).slice(0, 50);
+  let name = base + '.' + ext;
+  busy(1);
+  try {
+    for (let i = 0; i < 6; i++) {
+      const r = await ghRequest(g, '/contents/' + g.dir + '/' + name, 'PUT', { message: 'Picture uploaded by ' + me.email, content: url.split(',')[1], branch: g.branch });
+      if (r.code === 201 || r.code === 200) {
+        localImgs[name] = url;
+        api('imgUploaded', { name }).catch(() => {});
+        return name;
+      }
+      if (r.code === 422) { name = base + '-' + Math.random().toString(36).slice(2, 6) + '.' + ext; continue; } // name taken
+      if (r.code === 401) ghCache = null;
+      ghFail(r.code);
+    }
+    throw { code: 'GH_ERROR' };
+  } finally { busy(-1); }
+}
+
+/* =========================================================
+   WORD UPLOAD
+   ========================================================= */
+let imp = null; // { examId, questions, images, fileName }
+async function viewImport(examId) {
+  shell('questions', '<p class="muted">Loading…</p>');
+  try { await ensureCatalog(); } catch (e) { return pageError(e); }
+  if (!imp || imp.examId !== examId) imp = { examId, questions: null, images: [], fileName: '' };
+  const ex = cat.exams.find(e => e.id === examId);
+  $('#main').innerHTML = `
+    <p style="margin:0 0 .3rem"><a class="link" href="#/questions/${encodeURIComponent(examId || '')}">← Questions</a></p>
+    <h1>Upload a Word file</h1>
+    <p class="lede">Write questions in Word the usual way, upload the .docx, check everything here, then save. Nothing is saved until you click Save.
+      <a class="link" href="word-template.docx" download>Download the Word template</a></p>
+    <div class="card stack">
+      <label class="f"><span>Add the questions to this exam</span><select class="t" id="pick" style="max-width:34rem">${examOptions(examId)}</select></label>
+      ${ex ? `<div class="row"><input type="file" id="docx" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+        <button class="btn" id="choose">${imp.questions ? 'Choose another Word file' : 'Choose Word file (.docx)'}</button>
+        <span class="muted">${imp.fileName ? esc(imp.fileName) : ''}</span></div>` : ''}
+      ${ex && ex.attempts ? '<p class="alert">This exam already has student results, so questions can’t be added or replaced. Make a new exam instead.</p>' : ''}
+    </div>
+    <div id="iarea"></div>`;
+  $('#pick').onchange = e => { location.hash = '#/import/' + encodeURIComponent(e.target.value); };
+  if (!ex) return;
+  $('#choose').onclick = () => $('#docx').click();
+  $('#choose').disabled = !!ex.attempts;
+  $('#docx').onchange = async e => {
+    const file = e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    $('#iarea').innerHTML = '<p class="muted" style="margin-top:1rem">Reading the Word file…</p>';
+    try {
+      if (!window.DocxImport) throw { code: 'JSZIP_MISSING' };
+      const r = await DocxImport.parse(await file.arrayBuffer());
+      imp.images.forEach(im => im.url && URL.revokeObjectURL(im.url));
+      imp.images = r.images.map((im, i) => { const url = im.blob && im.supported ? URL.createObjectURL(im.blob) : ''; if (url) localImgs['@' + i] = url; return Object.assign(im, { url }); });
+      imp.questions = r; imp.fileName = file.name;
+      viewImport(examId);
+    } catch (err) { $('#iarea').innerHTML = `<p class="alert" style="margin-top:1rem">${esc(errText(err.code ? err : { code: err.message }))}</p>`; }
+  };
+  if (imp.questions) renderImport(ex);
+}
+
+function picRefs(q) {
+  const refs = new Set();
+  [q.question, q.solution, ...q.options].forEach(t => String(t || '').replace(/\[img:\s*(@\d+)\s*\]/g, (m, r) => refs.add(r)));
+  return [...refs];
+}
+
+function checkQ(q) {
+  const p = [];
+  if (!q.question.trim()) p.push('No question text');
+  const miss = q.options.map((o, j) => o.trim() ? '' : LABELS[j]).filter(Boolean);
+  if (miss.length) p.push('Missing option ' + miss.join(', '));
+  if (!q.answer) p.push('No correct answer');
+  picRefs(q).forEach(r => { const im = imp.images[+r.slice(1)]; if (!im || !im.supported) p.push('Picture in a format browsers can’t show (' + (im ? im.ext.toUpperCase() : '?') + '). Replace it with PNG/JPG in Word, or remove it.'); });
+  return p;
+}
+
+function renderImport(ex) {
+  const qs = imp.questions;
+  qs.forEach(q => { q.problems = checkQ(q); });
+  const bad = qs.filter(q => q.problems.length).length;
+  const pics = new Set(); qs.forEach(q => picRefs(q).forEach(r => pics.add(r)));
+  const existing = ex.questions;
+  const tooMany = existing + qs.length > 60;
+  $('#iarea').innerHTML = `
+    <div class="card" style="margin-top:1rem">
+      <div class="row" style="margin-bottom:.6rem">
+        <div><h2>Found ${qs.length} question${qs.length === 1 ? '' : 's'}</h2>
+          <span class="muted">${bad ? `<b style="color:var(--bad)">${bad} need fixing</b>` : 'All look complete'} · ${pics.size} picture${pics.size === 1 ? '' : 's'}</span></div>
+      </div>
+      ${!qs.length ? '<p class="alert">No questions were recognised. Each question should start with its number (১. or 1.), followed by options (ক) (খ) (গ) (ঘ) and a line like "সঠিক উত্তর: (খ)". Compare with the Word template.</p>' : ''}
+      ${pics.size && !cat.uploads ? '<p class="alert">This file has pictures, but picture upload isn’t set up (Settings › Picture upload). Set it up first, or the pictures will be left out.</p>' : ''}
+      ${qs.length ? `<div class="stack" style="margin-top:.6rem">
+        ${existing ? `<div class="row"><label class="check"><input type="radio" name="mode" value="append" checked> Add after the ${existing} existing question(s)</label>
+          <label class="check"><input type="radio" name="mode" value="replace"> Replace the existing questions</label></div>` : ''}
+        ${tooMany ? `<p class="alert">An exam can have at most 60 questions (one A5 OMR sheet). ${existing ? 'Choose "Replace", or ' : ''}remove some questions.</p>` : ''}
+        <div class="row"><button class="btn" id="save" ${bad ? 'disabled' : ''}>Save ${qs.length} question${qs.length === 1 ? '' : 's'} to ${esc(ex.id)}</button><span class="muted" id="prog" aria-live="polite">${bad ? 'Fix or remove the questions marked in red first.' : ''}</span></div>
+      </div>` : ''}
+    </div>
+    <div class="card" style="margin-top:1rem" id="ilist">${qs.map((q, i) => `
+      <div class="qcard" style="${q.problems.length ? 'box-shadow:inset 3px 0 0 var(--bad);padding-left:.6rem' : ''}">
+        <span class="qnum">${bn(i + 1)}.</span>
+        <div class="qbody">
+          ${q.problems.length ? `<p class="alert" style="margin:0 0 .4rem;font-size:.88rem">${q.problems.map(esc).join(' · ')}</p>` : ''}
+          <div class="qt">${rich(q.question)}</div>
+          <div class="qopts">${q.options.map((o, j) => `<div class="${KEYS[j] === q.answer ? 'right' : ''}">(${LABELS[j]}) ${rich(o) || '<span class="imgmiss">missing</span>'}${KEYS[j] === q.answer ? ' ✓' : ''}</div>`).join('')}</div>
+          ${q.solution ? `<details style="margin-top:.4rem"><summary class="muted" style="cursor:pointer">Solution</summary><div style="margin-top:.3rem">${rich(q.solution)}</div></details>` : '<p class="muted" style="margin:.3rem 0 0;font-size:.85rem">No solution</p>'}
+        </div>
+        <div class="qtools"><button class="btn ghost sm" data-fix="${i}">Edit</button><button class="btn danger sm" data-rm="${i}">Remove</button></div>
+      </div>`).join('')}</div>`;
+  typeset($('#ilist'));
+  document.querySelectorAll('[data-fix]').forEach(b => b.onclick = () => {
+    const i = +b.dataset.fix, q = qs[i];
+    questionDialog(null, { q: Object.assign({ image: '', solutionImage: '' }, q), title: 'Fix question ' + (i + 1), examId: ex.id,
+      onSave: data => { Object.assign(q, data); renderImport(ex); toast('Updated. Remember to save at the top.'); } });
+  });
+  document.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { qs.splice(+b.dataset.rm, 1); renderImport(ex); });
+  if ($('#save')) $('#save').onclick = () => saveImport(ex);
+}
+
+async function saveImport(ex) {
+  const qs = imp.questions;
+  const mode = (document.querySelector('[name=mode]:checked') || {}).value || 'append';
+  if (mode === 'replace' && !confirm(`Replace the ${ex.questions} existing question(s) of ${ex.id} with these ${qs.length}?`)) return;
+  if ((mode === 'replace' ? 0 : ex.questions) + qs.length > 60) { toast(ERR.Q_TOO_MANY); return; }
+  const btn = $('#save'), prog = $('#prog');
+  btn.disabled = true;
+  try {
+    // 1. upload pictures used by the questions
+    const used = new Set(); qs.forEach(q => picRefs(q).forEach(r => used.add(r)));
+    const names = {};
+    let n = 0;
+    for (const r of used) {
+      n++;
+      if (!cat.uploads) break;
+      prog.textContent = `Uploading picture ${n} of ${used.size}…`;
+      const im = imp.images[+r.slice(1)];
+      names[r] = await uploadPicture(im.blob, ex.id, 'w' + Date.now().toString(36) + n);
+    }
+    const fix = t => String(t || '').replace(/\n?\[img:\s*(@\d+)\s*\]\n?/g, (m, r) => names[r] ? '\n[img:' + names[r] + ']\n' : '').replace(/^\n+|\n+$/g, '');
+    const out = qs.map(q => ({ question: fix(q.question), image: q.image || '', options: q.options.map(fix), answer: q.answer, solution: fix(q.solution), solutionImage: q.solutionImage || '' }));
+    // 2. save the questions
+    prog.textContent = 'Saving questions…';
+    qData = await api('qImport', { examId: ex.id, mode, questions: out });
+    imp = null; cat = null;
+    toast(`${out.length} question(s) saved`);
+    location.hash = '#/questions/' + encodeURIComponent(ex.id);
+  } catch (err) {
+    btn.disabled = false;
+    prog.innerHTML = `<span style="color:var(--bad)">${esc(errText(err))}</span>`;
+  }
+}
+
+/* =========================================================
+   SETTINGS: picture upload (GitHub)
+   ========================================================= */
+function githubSettings(g) {
+  const box = document.createElement('div');
+  box.className = 'card stack'; box.style.cssText = 'max-width:40rem;margin-top:1rem';
+  box.innerHTML = `<h2>Picture upload</h2>
+    <p class="muted" style="margin:0">Pictures uploaded in the question editor and from Word files are saved into the <code>images</code> folder of your GitHub website. This needs a GitHub access key (see README, "Setting up picture upload"). The key is kept in the Google Sheet's Settings tab (keep the Sheet private) and is only handed to signed-in admins when they upload a picture.</p>
+    <form class="stack" id="gh">
+      <label class="f"><span>GitHub repository</span><input class="t" name="repo" value="${esc(g.repo)}" placeholder="yourname/exam-portal"></label>
+      <div class="grid2"><label class="f"><span>Branch</span><input class="t" name="branch" value="${esc(g.branch)}"></label>
+        <label class="f"><span>Folder</span><input class="t" name="dir" value="${esc(g.dir)}"><small>Must match IMAGE_FOLDER in config.js (normally <code>images</code>).</small></label></div>
+      <label class="f"><span>Access key</span><input class="t" name="ghkey" type="password" autocomplete="off" placeholder="${g.hasToken ? 'Saved. Leave empty to keep it.' : 'github_pat_…'}"></label>
+      ${g.hasToken ? '<label class="check"><input type="checkbox" name="clear"> Remove the saved key</label>' : ''}
+      <p class="alert err" hidden></p>
+      <div class="row"><button class="btn">Save</button><button type="button" class="btn ghost" id="ghtest">Test connection</button><span id="ghres" class="muted"></span></div>
+    </form>`;
+  box.querySelector('#gh').onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target, err = f.querySelector('.err'); err.hidden = true;
+    try {
+      const r = await api('githubSave', { repo: f.repo.value.trim(), branch: f.branch.value.trim(), dir: f.dir.value.trim(), ghToken: f.ghkey.value.trim(), clearToken: f.clear && f.clear.checked });
+      toast('Saved'); cat = null; ghCache = null; box.replaceWith(githubSettings(r.github));
+    } catch (x) { err.hidden = false; err.textContent = errText(x); }
+  };
+  box.querySelector('#ghtest').onclick = async () => {
+    const out = box.querySelector('#ghres'); out.textContent = 'Testing…';
+    try { const r = await githubTest(); out.innerHTML = `<span style="color:var(--ok);font-weight:600">✓ Connected to ${esc(r.repo)} (${esc(r.branch)})</span>`; }
+    catch (x) { out.innerHTML = `<span style="color:var(--bad)">${esc(errText(x))}</span>`; }
+  };
+  return box;
 }
 
 boot();

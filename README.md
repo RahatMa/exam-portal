@@ -11,6 +11,8 @@ This guide assumes no programming experience. Follow the parts in order. The who
 | `admin.html` | The admin portal: books, exams, questions, results, book IDs, students, settings, admins. | GitHub |
 | `print.html` | A tool for you that prints question papers, answer keys, solutions and OMR sheets. | GitHub |
 | `omr-draw.js` | Draws the OMR sheet; used by `omr-sheet.html` and `print.html`. | GitHub |
+| `docx-import.js` | Reads Word files for "Upload Word file" in the admin portal. | GitHub |
+| `word-template.docx` | Sample Word file showing how to write questions for upload. | GitHub |
 | `generator.html` | A tool for you that turns book IDs into printable QR codes. | GitHub |
 | `omr-sheet.html` | A tool for you that makes the printable A5 OMR answer sheet for each exam. | GitHub |
 | `omr-scan.js`, `omr-layout.js` | The camera scanner, used by `index.html`. | GitHub |
@@ -49,7 +51,35 @@ If you already set up the portal with the earlier version, do this once. Nothing
 
 **Admin preview books:** to try exams as a student would (including hidden ones), set a book ID's status to admin preview in the Books tab (`ADMIN`). Its submissions are never saved or ranked.
 
-Word upload and picture upload are in the next update. Until then, add pictures by uploading them to the `images` folder on GitHub and typing the file name in the question editor.
+### Uploading questions from Word
+
+On the **Questions** page, choose an exam and click **Upload Word file**. The page reads the file, shows every question it found with math and pictures, marks anything incomplete in red, and saves nothing until you click **Save**. You can fix a question (Edit) or drop it (Remove) before saving, and choose to add the questions after the existing ones or replace them.
+
+Write the Word file like `word-template.docx` (download it from the upload page):
+
+- Start each question with its number: `১.` or `1.` Word's automatic numbering also works.
+- Options as `(ক) … (খ) … (গ) … (ঘ) …`: one per line, several on one line, or in a table. Automatic lettered lists (a, b, c, d) also work.
+- The answer on its own line: `সঠিক উত্তর: (খ)` (also `উত্তর: খ` or `Ans: b`).
+- Then `সমাধান / ব্যাখ্যা:` (or `সমাধান:`) followed by the solution, until the next question.
+- Anything before the first question (title, instructions) is ignored.
+- **Equations:** use Word's own equation tool (**Insert › Equation**). They become portal math automatically. **MathType** equations are pictures in an old format browsers can't show: in Word, use MathType's **Convert Equations** to turn them into Word (Office Math) equations first.
+- **Pictures:** paste them straight into Word. PNG and JPG work; old formats (EMF/WMF, often from drawing tools) are flagged so you can replace them.
+- Use **.docx**, not the old .doc format (Word: File › Save As › Word Document).
+
+### Setting up picture upload
+
+Pictures (from the question editor's **Upload picture** buttons, or inside Word files) are saved into the `images` folder of your GitHub website. A super admin does this setup once:
+
+1. On GitHub, click your profile photo › **Settings** › **Developer settings** › **Personal access tokens** › **Fine-grained tokens** › **Generate new token**.
+2. Name it "Exam portal pictures". Set **Expiration** to 1 year (put a reminder in your calendar to make a new one).
+3. **Repository access:** "Only select repositories", choose your website repository.
+4. **Permissions › Repository permissions › Contents:** "Read and write".
+5. Click **Generate token** and copy it (it starts with `github_pat_`).
+6. In the admin portal: **Settings › Picture upload**. Enter the repository (like `yourname/exam-portal`), branch `main`, folder `images`, paste the key, **Save**, then **Test connection**.
+
+The browser sends pictures straight to GitHub, so Google never needs an extra permission for this. The key is kept in the **Settings** tab of your Google Sheet (rows starting with `GH_`), so keep the Sheet private; signed-in admins receive it only when they upload a picture. New pictures show in the admin portal straight away and on the student site about a minute later, once GitHub publishes them.
+
+If the key ever leaks, delete it on GitHub (Settings › Developer settings › Fine-grained tokens) and make a new one; it can only change files in that one repository.
 
 ---
 
