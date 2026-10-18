@@ -7,18 +7,20 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="config.js?v=1"></script>
+<script src="receipt.js?v=1"></script>
 <style>
 :root {
   --desk: #eceef1; --paper: #fff; --text: #1d2026; --muted: #5d6470; --line: #d9dce2;
-  --ink: #cc3d78; --ink-soft: #f7dbe7; --ink-text: #a3285c; --graphite: #2a2d33; --on-graphite: #fff;
+  --ink: #1F6FEB; --ink-soft: #e3edfd; --ink-text: #1554c0; --graphite: #0B1F4B; --on-graphite: #fff;
   --ok: #147a4b; --ok-soft: #dcf1e6; --bad: #c4321b; --bad-soft: #fbe2dc; --warn: #8a5a00; --warn-soft: #fff1d0; --focus: #2563eb;
   --serif: "Noto Serif Bengali", serif; --sans: "Hind Siliguri", "Noto Sans Bengali", system-ui, sans-serif; color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --desk: #131519; --paper: #1d2025; --text: #eceef1; --muted: #a2a8b3; --line: #343841;
-    --ink: #f07aa8; --ink-soft: #3a2230; --ink-text: #f59cbf; --graphite: #e9eaed; --on-graphite: #16181c;
+    --ink: #5b9bff; --ink-soft: #172a4a; --ink-text: #8ab6ff; --graphite: #e3eaf7; --on-graphite: #0B1F4B;
     --ok: #4cc08a; --ok-soft: #17321f; --bad: #ff7a63; --bad-soft: #3a1d18; --warn: #f2cf6b; --warn-soft: #3a3010; --focus: #7aa7ff; color-scheme: dark;
   }
 }
@@ -66,6 +68,17 @@ summary { cursor: pointer; font-weight: 600; color: var(--ink-text); }
 .tabs { display: flex; gap: .4rem; margin-bottom: 1rem; }
 .tabs a { padding: .35rem .9rem; border-radius: 999px; border: 1.5px solid var(--line); text-decoration: none; color: var(--text); font-weight: 600; background: var(--paper); }
 .tabs a[aria-current="page"] { background: var(--graphite); color: var(--on-graphite); border-color: var(--graphite); }
+.brand img { height: 2.3rem; display: block; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .brand img { background: #fff; border-radius: 6px; padding: .15rem .4rem; } }
+.due { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.due b { font: 700 1.8rem var(--sans); }
+.months { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .6rem; }
+.months span { font-size: .85rem; padding: .15rem .55rem; border-radius: 5px; border: 1px solid var(--line); }
+.months .paid { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.months .owe { border-color: var(--bad); color: var(--bad); font-weight: 600; }
+.months .part { border: 1px dashed #e0a400; color: var(--warn); font-weight: 600; }
+.rcpt { display: flex; justify-content: space-between; align-items: center; gap: .6rem; padding: .55rem 0; border-top: 1px solid var(--line); }
+.rcpt:first-child { border-top: 0; }
 .foot { text-align: center; color: var(--muted); font-size: .9rem; margin-top: 2rem; }
 .busy { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: var(--ink); z-index: 50; }
 </style>
@@ -125,7 +138,7 @@ function imgSrc(ref) {
 }
 const errBox = e => e ? `<p class="alert" role="alert">${esc(e)}</p>` : '';
 function paint(html) {
-  $('#brand').textContent = CFG.SITE_NAME; document.title = CFG.SITE_NAME;
+  $('#brand').innerHTML = `<img src="${esc(CFG.LOGO || 'logo.png')}" alt="${esc(CFG.SITE_NAME)}" onerror="this.outerHTML='${esc(CFG.SITE_NAME).replace(/'/g, '')}'">`; document.title = CFG.SITE_NAME;
   $('#topRight').innerHTML = me ? `<span class="sid">${esc(me.id)}</span>` : '';
   $('#app').innerHTML = html; window.scrollTo(0, 0);
   const f = $('#app [autofocus]'); if (f) f.focus();
@@ -192,7 +205,33 @@ function hello() {
   const photo = me.photo ? `<img class="avatar" src="${esc(imgSrc(me.photo))}" alt="">` : `<div class="avatar" aria-hidden="true">${esc((me.name || '?')[0])}</div>`;
   return `<div class="hello">${photo}<div><h1>${esc(me.name)}</h1><span class="sid">আইডি: ${esc(me.id)}</span></div></div>`;
 }
-const tabs = page => `<nav class="tabs"><a href="#/" ${page === 'home' ? 'aria-current="page"' : ''}>আমার ব্যাচ</a><a href="#/profile" ${page === 'profile' ? 'aria-current="page"' : ''}>প্রোফাইল</a></nav>`;
+const tabs = page => `<nav class="tabs"><a href="#/" ${page === 'home' ? 'aria-current="page"' : ''}>আমার ব্যাচ</a><a href="#/fees" ${page === 'fees' ? 'aria-current="page"' : ''}>ফি</a><a href="#/profile" ${page === 'profile' ? 'aria-current="page"' : ''}>প্রোফাইল</a></nav>`;
+const tk = n => '৳' + bn(Number(n || 0).toLocaleString('en-IN'));
+const BN_MONTHS = ['জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'];
+const bnMonth = ym => { const [y, m] = String(ym).split('-'); return BN_MONTHS[+m - 1] + ' ' + bn(y); };
+
+async function viewFees() {
+  paint(`${hello()}${tabs('fees')}<p style="color:var(--muted)">লোড হচ্ছে…</p>`); bindCommon();
+  let f;
+  try { f = await api('stuFees'); } catch (x) { if (!stoken) return viewLogin(msg(x)); return paint(`${hello()}${tabs('fees')}${errBox(msg(x))}`); }
+  paint(`${hello()}${tabs('fees')}
+    <section class="card"><div class="due"><span>এখন পর্যন্ত বকেয়া</span><b style="color:${f.totalDue ? 'var(--bad)' : 'var(--ok)'}">${tk(f.totalDue)}</b></div>
+      <p class="lede" style="margin:.2rem 0 0">${f.totalDue ? 'অফিসে নগদ টাকা দিয়ে রসিদ নিন।' : 'কোনো বকেয়া নেই।'}</p></section>
+    ${f.accounts.map(a => `<section class="card" style="margin-top:1rem"><div class="course" style="font-size:.85rem;font-weight:600;color:var(--ink-text)">${esc(a.courseName)}</div><h2>${esc(a.batchName)}</h2>
+      <p class="lede" style="margin:.2rem 0 0">মাসিক ফি ${tk(Math.max(0, a.monthlyFee - a.monthlyDiscount))}${a.monthlyDiscount ? ` (ছাড় ${tk(a.monthlyDiscount)})` : ''}</p>
+      <div class="months">${a.admission ? `<span class="${a.admission.due ? (a.admission.paid ? 'part' : 'owe') : 'paid'}">ভর্তি ফি ${a.admission.due ? '· বাকি ' + tk(a.admission.due) : '✓'}</span>` : ''}
+        ${a.months.filter(m => !m.future || m.paid).map(m => `<span class="${m.due === 0 ? 'paid' : m.paid ? 'part' : 'owe'}">${bnMonth(m.month)} ${m.due === 0 ? '✓' : '· বাকি ' + tk(m.due)}</span>`).join('')}</div></section>`).join('')}
+    <section class="card" style="margin-top:1rem"><h2 style="margin-bottom:.4rem">রসিদ</h2>
+      ${f.receipts.length ? f.receipts.map(r => `<div class="rcpt"><div><b>${esc(r.no)}</b> <span style="color:var(--muted)">· ${bn(r.date)}</span>${r.status === 'CANCELLED' ? ' <span class="pill" style="color:var(--bad)">বাতিল</span>' : ''}<br>${tk(r.total)}</div>
+        <button class="btn ghost" data-rc="${esc(r.no)}">দেখুন / প্রিন্ট</button></div>`).join('') : '<p class="lede" style="margin:0">এখনো কোনো রসিদ নেই।</p>'}</section>
+    <p class="foot"><button class="link" id="out">সাইন আউট</button></p>`);
+  bindCommon();
+  document.querySelectorAll('[data-rc]').forEach(b => b.onclick = async () => {
+    const w = window.open('', '_blank');
+    try { const r = (await api('stuReceipt', { no: b.dataset.rc })).receipt; if (w) { w.document.write(receiptHtml(r, CFG.SITE_NAME, new URL(CFG.LOGO || 'logo.png', location.href).href)); w.document.close(); } }
+    catch (x) { if (w) w.close(); alert(msg(x)); }
+  });
+}
 
 function viewHome() {
   if (me.status === 'PENDING') {
@@ -215,7 +254,7 @@ function viewHome() {
   paint(`${hello()}${tabs('home')}
     ${active.length ? active.map(card).join('') : '<p class="note">আপনি এখনো কোনো ব্যাচে ভর্তি হননি। ভর্তির জন্য অফিসে যোগাযোগ করুন।</p>'}
     ${past.length ? `<h2 style="margin:1.6rem 0 .8rem;font-size:1rem;color:var(--muted)">আগের ব্যাচ</h2>${past.map(card).join('')}` : ''}
-    <p class="foot">ফি, উপস্থিতি ও পরীক্ষার ফলাফল শীঘ্রই এখানে দেখা যাবে। · <button class="link" id="out">সাইন আউট</button></p>`);
+    <p class="foot">উপস্থিতি ও পরীক্ষার ফলাফল শীঘ্রই এখানে দেখা যাবে। · <button class="link" id="out">সাইন আউট</button></p>`);
   bindCommon();
 }
 
@@ -273,6 +312,7 @@ async function route() {
     catch (x) { if (!stoken) return viewLogin(msg(x)); return paint(`<section class="card stack">${errBox(msg(x))}<button class="btn" id="again">আবার চেষ্টা করুন</button></section>`), ($('#again').onclick = route); }
   }
   if (page === 'profile' && me.status !== 'PENDING') return viewProfile();
+  if (page === 'fees' && me.status !== 'PENDING') return viewFees();
   viewHome();
 }
 window.addEventListener('hashchange', route);

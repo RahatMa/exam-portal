@@ -15,10 +15,11 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script defer src="docx-import.js?v=1"></script>
 <script src="config.js?v=1"></script>
+<script src="receipt.js?v=1"></script>
 <style>
 :root {
   --desk: #eceef1; --paper: #fff; --text: #1d2026; --muted: #5d6470; --line: #d9dce2;
-  --ink: #cc3d78; --ink-soft: #f7dbe7; --ink-text: #a3285c; --graphite: #2a2d33; --on-graphite: #fff;
+  --ink: #1F6FEB; --ink-soft: #e3edfd; --ink-text: #1554c0; --graphite: #0B1F4B; --on-graphite: #fff;
   --ok: #147a4b; --ok-soft: #dcf1e6; --bad: #c4321b; --bad-soft: #fbe2dc; --focus: #2563eb;
   --sans: "Hind Siliguri", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light;
@@ -26,7 +27,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --desk: #131519; --paper: #1d2025; --text: #eceef1; --muted: #a2a8b3; --line: #343841;
-    --ink: #f07aa8; --ink-soft: #3a2230; --ink-text: #f59cbf; --graphite: #e9eaed; --on-graphite: #16181c;
+    --ink: #5b9bff; --ink-soft: #172a4a; --ink-text: #8ab6ff; --graphite: #e3eaf7; --on-graphite: #0B1F4B;
     --ok: #4cc08a; --ok-soft: #17321f; --bad: #ff7a63; --bad-soft: #3a1d18; --focus: #7aa7ff; color-scheme: dark;
   }
 }
@@ -175,6 +176,18 @@ textarea.t:focus { border-color: var(--ink); outline: none; box-shadow: 0 0 0 3p
 .ans-grid .wrong { background: var(--bad-soft); color: var(--bad); }
 .ans-grid .blank { border: 1px dashed var(--line); color: var(--muted); }
 td a { color: var(--ink-text); font-weight: 600; }
+.mchips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.mchip { position: relative; display: block; cursor: pointer; }
+.mchip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.mchip span { display: grid; min-width: 6.4rem; padding: .35rem .6rem; border-radius: 6px; border: 1.5px solid var(--line); background: var(--paper); line-height: 1.25; }
+.mchip span b { font-size: .9rem; } .mchip span small { font-size: .75rem; color: var(--muted); }
+.mchip.paid span { background: var(--ok-soft); border-color: transparent; cursor: default; } .mchip.paid small { color: var(--ok); }
+.mchip.owe span { border-color: var(--bad); } .mchip.owe small, .mchip.part small { color: var(--bad); font-weight: 600; }
+.mchip.part span { border-color: #e0a400; border-style: dashed; }
+.mchip.future span { border-style: dashed; }
+.mchip input:checked + span { background: var(--graphite); color: var(--on-graphite); border-color: var(--graphite); }
+.mchip input:checked + span small { color: inherit; }
+.mchip input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
 .ids { font-family: ui-monospace, monospace; font-size: .85rem; max-height: 10rem; overflow: auto; background: var(--desk); padding: .5rem .7rem; border-radius: 6px; columns: 4 8rem; }
 </style>
 </head>
@@ -189,7 +202,7 @@ td a { color: var(--ink-text); font-weight: 600; }
 'use strict';
 const CFG = Object.assign({ API_URL: '', SITE_NAME: 'Portal' }, window.PORTAL_CONFIG || {});
 const API_URL = String(CFG.API_URL || '').trim();
-const ADMIN_VERSION = '3.0';
+const ADMIN_VERSION = '3.1';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = {
@@ -339,6 +352,11 @@ const NAV = [
   { id: 'courses', label: 'Courses & batches', show: () => true },
   { id: 'lstudents', label: 'Students', show: () => can('students.view') },
   { id: 'mybatches', label: 'Batch lists', show: () => can('students.view') },
+  { group: 'Fees' },
+  { id: 'fees', label: 'Collect fees', show: () => can('fees.collect') },
+  { id: 'dues', label: 'Unpaid list', show: () => can('fees.report') },
+  { id: 'cash', label: 'Cash report', show: () => can('fees.report') },
+  { id: 'coupons', label: 'Coupons & offers', show: () => can('coupons') },
   { group: 'Books & OMR' },
   { id: '', label: 'Books & exams', show: () => can('books.edit') },
   { id: 'questions', label: 'Questions', show: () => can('questions') },
@@ -365,7 +383,7 @@ function shell(page, html) {
   });
   $('#root').innerHTML = `<div class="shell">
     <nav class="side" aria-label="Admin">
-      <div class="brand"><small>Admin</small>${esc(CFG.SITE_NAME)}</div>
+      <div class="brand"><img src="${esc(CFG.LOGO || 'logo.png')}" alt="${esc(CFG.SITE_NAME)}" style="display:block;height:2.1rem;margin-bottom:.15rem" onerror="this.replaceWith(document.createTextNode('${esc(CFG.SITE_NAME).replace(/'/g, '')}'))"><small>Admin</small></div>
       ${items.join('')}
       <div class="me"><b>${esc(me.name)}</b>${ROLE_NAMES[me.role] || me.role} · <button class="link" id="out">Sign out</button><br><small>Admin version ${ADMIN_VERSION}</small></div>
     </nav>
@@ -377,6 +395,11 @@ function route() {
   if (!me) return boot();
   const [page, arg] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
   if (page === 'courses') return viewCourses(arg);
+  if (page === 'fees' && can('fees.collect')) return viewFees();
+  if (page === 'collect' && can('fees.collect')) return viewCollect(arg);
+  if (page === 'dues' && can('fees.report')) return viewDues();
+  if (page === 'cash' && can('fees.report')) return viewCashReport();
+  if (page === 'coupons' && can('coupons')) return viewCoupons();
   if (page === 'lstudents' && can('students.view')) return viewLStudents(arg);
   if (page === 'student' && can('students.view')) return viewLStudent(arg);
   if (page === 'mybatches' && can('students.view')) return viewMyBatches();
@@ -1062,6 +1085,9 @@ async function viewSettings() {
   $('#main').innerHTML = `<h1>Settings</h1><p class="lede">These apply to the whole site.</p>
     <form class="card stack" id="sf" style="max-width:40rem">
       <label class="f"><span>Website address</span><input class="t" name="site" value="${esc(s.siteUrl)}" placeholder="https://exam.yourdomain.com/"><small>Book QR codes point here. Set it before making book IDs; printed QR codes can't change later.</small></label>
+      <label class="f"><span>Centre address (printed on receipts and ID cards)</span><input class="t" name="caddr" value="${esc(s.centreAddress || '')}" maxlength="200"></label>
+      <div class="grid2"><label class="f"><span>Centre phone</span><input class="t" name="cphone" value="${esc(s.centrePhone || '')}" maxlength="60"></label>
+        <label class="f"><span>Receipt number letters</span><input class="t" name="rprefix" value="${esc(s.receiptPrefix || 'GP')}" maxlength="6" style="text-transform:uppercase"><small>Receipts look like ${esc(s.receiptPrefix || 'GP')}26-00001.</small></label></div>
       <div class="grid2">
         <label class="f"><span>Default marks per correct answer</span><input class="t" name="mc" type="number" step="0.01" min="0.01" value="${s.markCorrect}"></label>
         <label class="f"><span>Default marks per wrong answer</span><input class="t" name="mw" type="number" step="0.01" max="0" value="${s.markWrong}"><small>e.g. -0.25. Exams can override both.</small></label>
@@ -1079,7 +1105,8 @@ async function viewSettings() {
   $('#sf').onsubmit = async e => {
     e.preventDefault();
     const f = e.target, box = f.querySelector('.err'); box.hidden = true;
-    try { await api('settingsSave', { settings: { siteUrl: f.site.value.trim(), markCorrect: f.mc.value, markWrong: f.mw.value, published: f.pub.checked, size: f.size.value } }); toast('Settings saved'); cat = null; }
+    try { await api('settingsSave', { settings: { siteUrl: f.site.value.trim(), markCorrect: f.mc.value, markWrong: f.mw.value, published: f.pub.checked, size: f.size.value,
+      centreAddress: f.caddr.value.trim(), centrePhone: f.cphone.value.trim(), receiptPrefix: f.rprefix.value.trim() } }); toast('Settings saved'); cat = null; }
     catch (err) { box.hidden = false; box.textContent = errText(err); }
   };
   if (gh) $('#main').appendChild(githubSettings(gh));
@@ -1528,6 +1555,7 @@ async function viewLStudent(id) {
         </div>
         ${m ? `<div class="row">
           ${s.status === 'PENDING' ? '<button class="btn" id="approve">Approve</button>' : ''}
+          ${can('fees.collect') && s.status === 'ACTIVE' ? `<a class="btn sm" href="#/collect/${encodeURIComponent(s.id)}">Fees & payments</a>` : ''}
           <button class="btn ghost sm" id="edit">Edit</button><button class="btn ghost sm" id="reset">Reset password</button>
           <button class="btn ghost sm" id="card" ${s.status === 'ACTIVE' ? '' : 'disabled'}>Print ID card</button>
           <button class="btn ${s.status === 'BLOCKED' ? 'ghost' : 'danger'} sm" id="block">${s.status === 'BLOCKED' ? 'Unblock' : 'Block'}</button></div>` : ''}
@@ -1552,7 +1580,7 @@ async function viewLStudent(id) {
     if (!confirm(`Make a new password for ${s.name}? Their old password stops working, and they're signed out on every phone.`)) return;
     try { const x = await api('studentResetPassword', { studentId: s.id }); passwordSlip(s, x.tempPassword); } catch (e) { toast(errText(e)); }
   };
-  $('#card').onclick = () => idCards([s]);
+  $('#card').onclick = () => idCards([Object.assign({}, s, { batches: r.enrollments.filter(e => e.status === 'ACTIVE').map(e => e.batchId) })]);
   $('#block').onclick = async () => {
     const to = s.status === 'BLOCKED' ? 'ACTIVE' : 'BLOCKED';
     if (to === 'BLOCKED' && !confirm(`Block ${s.name}? They can no longer sign in.`)) return;
@@ -1617,27 +1645,64 @@ function passwordSlip(s, pw) {
   };
 }
 
-// ID cards (85.6 × 54 mm), 10 per A4 page.
-function idCards(list) {
+// ID cards (credit-card size 85.6 × 54 mm), front and back side by side.
+// The QR code holds the student's own link (…admin.html#/collect/S26-0001):
+// scanning it at the desk opens that student's fee page; attendance can use the same QR later.
+async function idCards(list) {
   if (!list.length) { toast('No active students to print.'); return; }
-  const qr = text => { if (typeof qrcode !== 'function') return ''; const q = qrcode(0, 'M'); q.addData(text); q.make(); const m = q.getModuleCount(); let d = '';
-    for (let r = 0; r < m; r++) for (let c = 0; c < m; c++) if (q.isDark(r, c)) d += `M${c} ${r}h1v1h-1z`;
-    return `<svg viewBox="-1 -1 ${m + 2} ${m + 2}"><rect x="-1" y="-1" width="${m + 2}" height="${m + 2}" fill="#fff"/><path d="${d}"/></svg>`; };
+  try { await ensureLms(); } catch (e) {}
+  const centre = (lms && lms.centre) || { address: '', phone: '' };
   const w = window.open('', '_blank'); if (!w) { toast('Allow pop-ups to print.'); return; }
-  const base = location.href.replace(/[#?].*$/, '').replace(/admin\.html$/, '');
+  const year = new Date().getFullYear();
+  const card = s => `
+    <div class="card front">
+      <div class="top"><img src="${esc(LOGO_URL)}" alt="${esc(CFG.SITE_NAME)}"><span>STUDENT ID</span></div>
+      <div class="mid">
+        ${s.photo ? `<img class="ph" src="${esc(new URL(imgSrc(s.photo), SITE_BASE).href)}" alt="">` : `<div class="ph">${esc((s.name || '?')[0])}</div>`}
+        <div class="who"><div class="nm">${esc(s.name)}</div><div class="lb">ID No.</div><div class="id">${esc(s.id)}</div>
+          <div class="bt">${(s.batches || []).map(b => esc(batchLabel(b))).join('<br>')}</div></div>
+        <div class="qr">${qrSvgText(studentQrUrl(s.id), 1)}</div>
+      </div>
+      <div class="bot"><span>${esc(s.phone || '')}</span><span>Session ${year}</span></div>
+    </div>
+    <div class="card back">
+      <div class="bk">
+        <p><b>This card belongs to ${esc(CFG.SITE_NAME)}.</b> Please bring it to every class and show it when paying fees.</p>
+        <p>If found, please return to:<br><b>${esc(CFG.SITE_NAME)}</b>${centre.address ? '<br>' + esc(centre.address) : ''}${centre.phone ? '<br>' + esc(centre.phone) : ''}</p>
+        <div class="sg"><div class="ln"></div>Authorised signature</div>
+      </div>
+      <div class="bq">${qrSvgText(studentQrUrl(s.id), 1)}<div class="id2">${esc(s.id)}</div></div>
+    </div>`;
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>ID cards</title>
-    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@500;700&display=swap" rel="stylesheet">
-    <style>body{margin:0;font-family:'Hind Siliguri',sans-serif}.bar{padding:10px;font:14px system-ui}.g{display:grid;grid-template-columns:repeat(2,85.6mm);gap:4mm;padding:8mm;justify-content:center}
-    .c{width:85.6mm;height:54mm;border:.3mm solid #999;border-radius:3mm;overflow:hidden;display:grid;grid-template-rows:auto 1fr;break-inside:avoid}
-    .h{background:#a3285c;color:#fff;font-weight:700;font-size:10pt;padding:1.5mm 3mm}.b{display:grid;grid-template-columns:20mm 1fr 15mm;gap:2.5mm;padding:2.5mm 3mm;align-items:center}
-    .p{width:20mm;height:25mm;object-fit:cover;border-radius:1.5mm;background:#eee;display:grid;place-items:center;font-size:18pt;color:#999}
-    .n{font-weight:700;font-size:10.5pt;line-height:1.2}.i{font:700 10pt ui-monospace,monospace;margin-top:1mm}.m{font-size:7.5pt;color:#333;line-height:1.35;margin-top:1mm}.q svg{width:15mm;height:15mm}
-    @media print{.bar{display:none}.g{padding:0}@page{margin:10mm}}</style></head><body>
-    <div class="bar">${list.length} card(s). <button onclick="print()">Print</button></div><div class="g">
-    ${list.map(s => `<div class="c"><div class="h">${esc(CFG.SITE_NAME)}</div><div class="b">
-      ${s.photo ? `<img class="p" src="${esc(new URL(imgSrc(s.photo), base).href)}">` : `<div class="p">${esc((s.name || '?')[0])}</div>`}
-      <div><div class="n">${esc(s.name)}</div><div class="i">${esc(s.id)}</div><div class="m">${(s.batches || []).map(b => esc(batchLabel(b))).join('<br>')}${s.phone ? '<br>' + esc(s.phone) : ''}</div></div>
-      <div class="q">${qr(s.id)}</div></div></div>`).join('')}</div></body></html>`);
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+    @page { size: A4; margin: 10mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Hind Siliguri', system-ui, sans-serif; color: #0B1F4B; }
+    .bar { padding: 10px; font: 14px system-ui; }
+    .sheet { display: grid; grid-template-columns: repeat(2, 85.6mm); gap: 5mm 6mm; padding: 6mm; justify-content: center; }
+    .card { width: 85.6mm; height: 54mm; border-radius: 3mm; overflow: hidden; border: .25mm solid #c9d3e6; position: relative; break-inside: avoid; background: #fff; }
+    .front { display: grid; grid-template-rows: 11mm 1fr 6mm; }
+    .top { display: flex; align-items: center; justify-content: space-between; padding: 0 3.5mm; border-bottom: .8mm solid #1F6FEB; }
+    .top img { height: 7.5mm; } .top span { font-size: 7pt; font-weight: 700; letter-spacing: .18em; color: #1F6FEB; }
+    .mid { display: grid; grid-template-columns: 19mm 1fr 17mm; gap: 2.5mm; padding: 2.5mm 3.5mm; align-items: center; }
+    .ph { width: 19mm; height: 23mm; border-radius: 1.5mm; object-fit: cover; background: #e3edfd; display: grid; place-items: center; font-size: 16pt; font-weight: 700; color: #1F6FEB; border: .3mm solid #c9d3e6; }
+    .nm { font-weight: 700; font-size: 10pt; line-height: 1.15; }
+    .lb { font-size: 6pt; letter-spacing: .12em; color: #5a6888; margin-top: 1.2mm; text-transform: uppercase; }
+    .id { font: 700 12pt ui-monospace, 'Courier New', monospace; letter-spacing: .04em; color: #1F6FEB; line-height: 1.1; }
+    .bt { font-size: 6.6pt; color: #3a4a6b; line-height: 1.3; margin-top: 1mm; }
+    .qr svg { width: 17mm; height: 17mm; display: block; }
+    .bot { background: #0B1F4B; color: #fff; display: flex; justify-content: space-between; align-items: center; padding: 0 3.5mm; font-size: 6.8pt; letter-spacing: .04em; }
+    .back { display: grid; grid-template-columns: 1fr 22mm; background: #0B1F4B; color: #fff; }
+    .bk { padding: 4mm 3mm 3mm 4mm; font-size: 7pt; line-height: 1.4; display: flex; flex-direction: column; }
+    .bk p { margin: 0 0 2mm; } .bk b { color: #fff; }
+    .sg { margin-top: auto; font-size: 6.5pt; color: #b9c6e4; } .ln { border-top: .25mm solid #b9c6e4; width: 30mm; margin-bottom: .8mm; }
+    .bq { background: #fff; margin: 4mm 3mm 4mm 0; border-radius: 2mm; display: grid; place-items: center; align-content: center; padding: 1.5mm; }
+    .bq svg { width: 17mm; height: 17mm; display: block; } .id2 { font: 700 6.5pt ui-monospace, monospace; color: #0B1F4B; margin-top: .6mm; }
+    @media print { .bar { display: none; } .sheet { padding: 0; } .card { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    </style></head><body>
+    <div class="bar">${list.length} card${list.length === 1 ? '' : 's'}: front (left) and back (right). <button onclick="print()">Print</button> Print on thick paper or card, cut out, glue back to back and laminate.</div>
+    <div class="sheet">${list.map(card).join('')}</div></body></html>`);
   w.document.close();
 }
 
@@ -1664,6 +1729,235 @@ async function viewMyBatches() {
       <table><tr><th>#</th><th>ID</th><th>Name</th><th>Mobile</th><th class="w">Present</th></tr>${b.students.map((s, i) => `<tr><td>${i + 1}</td><td>${esc(s.id)}</td><td>${esc(s.name)}</td><td>${esc(s.phone)}</td><td></td></tr>`).join('')}</table><script>print()<\/script>`);
     w.document.close();
   });
+}
+
+/* =========================================================
+   FEES: collect, receipts, unpaid list, cash report, coupons
+   ========================================================= */
+Object.assign(ERR, {
+  FEE_UNKNOWN: 'That fee item no longer exists. Reload the page.', FEE_TOO_MUCH: 'An amount is more than what is due for that month.',
+  FEE_LABEL: 'Give the other fee a name.', FEE_EMPTY: 'Choose at least one item to collect.', COUPON_INVALID: 'No active coupon with this code.',
+  COUPON_EXPIRED: 'This coupon is not valid today.', COUPON_USED_UP: 'This coupon has been used the maximum number of times.',
+  COUPON_NOT_FOR_THESE: 'This coupon doesn’t apply to the chosen fees.', COUPON_BAD_CODE: 'Code: 3–20 letters or numbers.', COUPON_EXISTS: 'A coupon with this code already exists.',
+  RECEIPT_NOT_FOUND: 'Receipt not found.', REASON_NEEDED: 'Write a reason (at least 3 characters).', ALREADY_CANCELLED: 'This receipt is already cancelled.',
+});
+const SITE_BASE = location.href.replace(/[#?].*$/, '').replace(/admin\.html$/, '');
+const LOGO_URL = new URL(CFG.LOGO || 'logo.png', SITE_BASE).href;
+const studentQrUrl = id => SITE_BASE + 'admin.html#/collect/' + encodeURIComponent(id);
+// A5 money receipt in a new tab, ready to print.
+function printReceipt(r) {
+  const w = window.open('', '_blank'); if (!w) { toast('Allow pop-ups for this site to print receipts.'); return; }
+  w.document.write(receiptHtml(r, CFG.SITE_NAME, LOGO_URL)); w.document.close();
+}
+/* ---------- find a student (type an ID, or scan their card with a USB/phone scanner) ---------- */
+function viewFees() {
+  shell('fees', `<h1>Collect fees</h1>
+    <p class="lede">Type a student ID, or scan the QR code on their ID card. A USB QR scanner works here too: click the box and scan.</p>
+    <form class="card row" id="ff" style="max-width:40rem"><input class="t" name="q" placeholder="S26-0001, name or mobile" autofocus style="flex:1;min-width:12rem"><button class="btn">Find</button></form>
+    <div id="fres" style="margin-top:1rem"></div>`);
+  $('#ff').onsubmit = async e => {
+    e.preventDefault();
+    let q = e.target.q.value.trim();
+    const m = q.match(/#\/collect\/([^\/?#\s]+)/) || q.match(/^\s*(S\d{2}-\d{3,})\s*$/i);
+    if (m) { location.hash = '#/collect/' + encodeURIComponent(decodeURIComponent(m[1]).toUpperCase()); return; }
+    try {
+      const r = await api('studentsList', { q, limit: 50 });
+      if (r.students.length === 1) { location.hash = '#/collect/' + encodeURIComponent(r.students[0].id); return; }
+      $('#fres').innerHTML = `<div class="card tw"><table><thead><tr><th>ID</th><th>Name</th><th>Mobile</th><th>Status</th><th></th></tr></thead><tbody>
+        ${r.students.map(s => `<tr><td><code>${esc(s.id)}</code></td><td>${esc(s.name)}</td><td>${esc(s.phone)}</td><td>${statusPill(s.status)}</td><td style="text-align:right"><a class="btn sm" href="#/collect/${encodeURIComponent(s.id)}">Collect</a></td></tr>`).join('') || '<tr><td colspan="5" class="muted">No student found.</td></tr>'}</tbody></table></div>`;
+    } catch (x) { $('#fres').innerHTML = `<p class="alert">${esc(errText(x))}</p>`; }
+  };
+}
+
+/* ---------- one student's fee page ---------- */
+async function viewCollect(id) {
+  shell('fees', '<p class="muted">Loading…</p>');
+  let a;
+  try { a = await api('feeAccount', { studentId: id }); } catch (e) { return pageError(e); }
+  const s = a.student, tk = n => money(n);
+  const chip = m => {
+    const cls = m.due === 0 ? 'paid' : m.paid > 0 ? 'part' : m.owing ? 'owe' : 'future';
+    const label = m.due === 0 ? 'Paid' : m.paid > 0 ? 'Due ' + tk(m.due) : m.owing ? 'Due' : 'Advance';
+    return `<label class="mchip ${cls}" title="${esc(monthName(m.month))}: fee ${tk(m.fee)}, paid ${tk(m.paid)}">
+      <input type="checkbox" data-key="${esc(m.key)}" data-due="${m.due}" ${m.due === 0 ? 'disabled' : ''}><span><b>${esc(monthName(m.month))}</b><small>${label}</small></span></label>`;
+  };
+  $('#main').innerHTML = `
+    <p style="margin:0 0 .3rem"><a class="link" href="#/fees">← Collect fees</a> · <a class="link" href="#/student/${encodeURIComponent(s.id)}">Student profile</a></p>
+    <div class="card row" style="align-items:center">
+      ${s.photo ? `<img src="${esc(imgSrc(s.photo))}" alt="" style="width:3.6rem;height:3.6rem;border-radius:50%;object-fit:cover">` : `<div style="width:3.6rem;height:3.6rem;border-radius:50%;background:var(--ink-soft);color:var(--ink-text);display:grid;place-items:center;font-weight:700;font-size:1.4rem">${esc(s.name[0] || '?')}</div>`}
+      <div><h1 style="margin:0">${esc(s.name)}</h1><span class="muted"><code>${esc(s.id)}</code> · ${esc(s.phone)}${s.guardianPhone ? ' · Guardian ' + esc(s.guardianPhone) : ''}</span></div>
+      <span class="spacer"></span>
+      <div style="text-align:right"><span class="muted" style="font-size:.85rem">Due now</span><br><b style="font-size:1.6rem;color:${a.totalDue ? 'var(--bad)' : 'var(--ok)'}">${tk(a.totalDue)}</b></div>
+    </div>
+    ${s.status !== 'ACTIVE' ? `<p class="alert" style="margin-top:1rem">This student is ${s.status === 'PENDING' ? 'waiting for approval' : 'blocked'}; fees can't be collected.</p>` : ''}
+    <form id="cf" class="stack" style="margin-top:1rem">
+      ${a.accounts.length ? a.accounts.map(ac => `<div class="card">
+        <div class="row" style="margin-bottom:.6rem"><div><h2>${esc(ac.courseName)} › ${esc(ac.batchName)}</h2>
+          <span class="muted">Monthly ${tk(ac.monthlyFee)}${ac.monthlyDiscount ? ` − ${tk(ac.monthlyDiscount)} discount${ac.discountNote ? ' (' + esc(ac.discountNote) + ')' : ''} = <b>${tk(Math.max(0, ac.monthlyFee - ac.monthlyDiscount))}</b>` : ''} · since ${esc(ac.startDate)}${ac.status === 'ENDED' ? ' · left ' + esc(ac.endDate) : ''}</span></div>
+          <span class="spacer"></span>${can('fees.discount') ? `<button type="button" class="btn ghost sm" data-disc="${esc(ac.enrollmentId)}" data-cur="${ac.monthlyDiscount}" data-note="${esc(ac.discountNote)}">Monthly discount</button>` : ''}</div>
+        ${ac.admission ? `<div class="mchips" style="margin-bottom:.5rem"><label class="mchip ${ac.admission.due ? (ac.admission.paid ? 'part' : 'owe') : 'paid'}"><input type="checkbox" data-key="${esc(ac.admission.key)}" data-due="${ac.admission.due}" ${ac.admission.due ? '' : 'disabled'}><span><b>Admission</b><small>${ac.admission.due ? 'Due ' + tk(ac.admission.due) : 'Paid'}</small></span></label></div>` : ''}
+        <div class="mchips">${ac.months.map(chip).join('')}</div>
+      </div>`).join('') : '<p class="note">Not enrolled in any batch, so there are no monthly fees. You can still collect other fees below.</p>'}
+      <div class="card stack">
+        <h2>This payment</h2>
+        <div id="lines"></div>
+        <div class="row"><button type="button" class="btn ghost sm" id="addOther">+ Other fee (exam, book…)</button><span class="spacer"></span>
+          <input class="t" name="coupon" placeholder="Coupon code" style="max-width:10rem;text-transform:uppercase"><button type="button" class="btn ghost sm" id="applyC">Apply</button></div>
+        <label class="f"><span>Note on the receipt (optional)</span><input class="t" name="note" maxlength="200"></label>
+        <div id="sum" class="row" style="justify-content:flex-end;font-size:1.1rem"></div>
+        <p class="alert err" hidden></p>
+        <div class="row" style="justify-content:flex-end"><button class="btn" id="collect" ${s.status === 'ACTIVE' ? '' : 'disabled'}>Collect cash & print receipt</button></div>
+      </div>
+    </form>
+    <div class="card" style="margin-top:1rem">
+      <h2 style="margin-bottom:.5rem">Payment history</h2>
+      <div class="tw"><table><thead><tr><th>Receipt</th><th>Date</th><th>Items</th><th>Amount</th><th>Received by</th><th></th></tr></thead><tbody>
+        ${a.receipts.map(r => `<tr${r.status === 'CANCELLED' ? ' style="opacity:.6"' : ''}><td><code>${esc(r.no)}</code>${r.status === 'CANCELLED' ? '<br><span class="pill" style="color:var(--bad)">Cancelled</span>' : ''}</td><td>${esc(when(r.at))}</td>
+          <td style="font-size:.88rem">${r.lines.map(l => esc(l.label.replace(/Monthly fee (\d{4}-\d{2}).*/, (m, ym) => monthName(ym) + (l.label.includes('(part)') ? ' (part)' : '')).replace(/^Admission fee.*/, 'Admission'))).join(', ')}</td>
+          <td class="n"><b>${tk(r.total)}</b>${r.discount ? `<br><span class="muted" style="font-size:.8rem">−${tk(r.discount)} ${esc(r.coupon)}</span>` : ''}</td><td>${esc(r.receivedByName || r.receivedBy)}</td>
+          <td style="text-align:right;white-space:nowrap"><button class="btn ghost sm" data-rc="${esc(r.no)}">Receipt</button>${me.role === 'super' && r.status === 'PAID' ? ` <button class="btn danger sm" data-cancel="${esc(r.no)}">Cancel</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No payments yet.</td></tr>'}
+      </tbody></table></div>
+    </div>`;
+  const f = $('#cf');
+  let others = [], preview = null;
+  const selected = () => [...f.querySelectorAll('[data-key]:checked')].map(c => ({ key: c.dataset.key, due: +c.dataset.due, label: c.closest('.mchip').querySelector('b').textContent }));
+  const draw = () => {
+    const sel = selected();
+    $('#lines').innerHTML = (sel.length || others.length) ? `<div class="tw"><table><tbody>
+      ${sel.map(x => `<tr><td>${esc(x.label)}</td><td style="width:9rem"><input class="t" type="number" min="1" step="1" max="${x.due}" value="${esc(String(amounts[x.key] ?? x.due))}" data-amt="${esc(x.key)}" style="text-align:right"></td></tr>`).join('')}
+      ${others.map((o, i) => `<tr><td><input class="t" placeholder="e.g. Exam fee" value="${esc(o.label)}" data-ol="${i}"></td><td style="width:9rem"><input class="t" type="number" min="1" value="${esc(String(o.amount || ''))}" data-oa="${i}" style="text-align:right"></td><td><button type="button" class="link" data-orm="${i}">remove</button></td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="muted" style="margin:0">Tick the months above (and/or add other fees). You can lower an amount for a part payment.</p>';
+    const sub = sel.reduce((t, x) => t + Number(amounts[x.key] ?? x.due), 0) + others.reduce((t, o) => t + (Number(o.amount) || 0), 0);
+    const disc = preview && preview.discount ? preview.discount : 0;
+    $('#sum').innerHTML = `${disc ? `<span class="muted">Subtotal ${tk(sub)} · Coupon −${tk(disc)} ·</span>` : ''}<b>Total ${tk(sub - disc)}</b>`;
+    f.querySelectorAll('[data-amt]').forEach(i => i.oninput = () => { amounts[i.dataset.amt] = i.value; preview = null; drawSum(); });
+    f.querySelectorAll('[data-ol]').forEach(i => i.oninput = () => { others[+i.dataset.ol].label = i.value; });
+    f.querySelectorAll('[data-oa]').forEach(i => i.oninput = () => { others[+i.dataset.oa].amount = i.value; preview = null; drawSum(); });
+    f.querySelectorAll('[data-orm]').forEach(b => b.onclick = () => { others.splice(+b.dataset.orm, 1); preview = null; draw(); });
+  };
+  const amounts = {};
+  const drawSum = () => {
+    const sel = selected();
+    const sub = sel.reduce((t, x) => t + Number(amounts[x.key] ?? x.due), 0) + others.reduce((t, o) => t + (Number(o.amount) || 0), 0);
+    $('#sum').innerHTML = `<b>Total ${tk(sub)}</b>`;
+  };
+  const payload = () => ({ studentId: s.id, coupon: f.coupon.value.trim(), note: f.note.value.trim(),
+    lines: selected().map(x => ({ key: x.key, amount: Number(amounts[x.key] ?? x.due) })).concat(others.map(o => ({ label: o.label, amount: Number(o.amount) }))) });
+  f.querySelectorAll('[data-key]').forEach(c => c.onchange = () => { preview = null; draw(); });
+  $('#addOther').onclick = () => { others.push({ label: '', amount: '' }); draw(); };
+  $('#applyC').onclick = async () => {
+    const box = f.querySelector('.err'); box.hidden = true;
+    try { preview = await api('feePreview', payload()); draw(); toast(preview.discount ? 'Coupon applied' : 'No discount'); } catch (x) { preview = null; box.hidden = false; box.textContent = errText(x); }
+  };
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const box = f.querySelector('.err'); box.hidden = true;
+    const p = payload();
+    if (p.lines.some(l => !(l.amount > 0))) { box.hidden = false; box.textContent = 'Every amount must be more than 0.'; return; }
+    try {
+      const pv = await api('feePreview', p);
+      if (!confirm(`Collect ${tk(pv.total)} in cash from ${s.name}?${pv.discount ? `\n(Coupon ${pv.coupon}: −${tk(pv.discount)})` : ''}`)) return;
+      const r = await api('feeCollect', p);
+      printReceipt(r.receipt); toast('Receipt ' + r.receipt.no + ' saved'); viewCollect(s.id);
+    } catch (x) { box.hidden = false; box.textContent = errText(x); }
+  };
+  document.querySelectorAll('[data-rc]').forEach(b => b.onclick = async () => { try { printReceipt((await api('receiptGet', { no: b.dataset.rc })).receipt); } catch (x) { toast(errText(x)); } });
+  document.querySelectorAll('[data-cancel]').forEach(b => b.onclick = async () => {
+    const reason = prompt(`Cancel receipt ${b.dataset.cancel}? It stays on record, marked cancelled, and its months become due again.\n\nReason:`);
+    if (!reason) return;
+    try { await api('receiptCancel', { no: b.dataset.cancel, reason }); toast('Receipt cancelled'); viewCollect(s.id); } catch (x) { toast(errText(x)); }
+  });
+  document.querySelectorAll('[data-disc]').forEach(b => b.onclick = async () => {
+    const v = prompt('Monthly discount for this student in this batch (৳ per month, 0 for none):', b.dataset.cur || '0');
+    if (v === null) return;
+    const note = prompt('Reason (e.g. sibling, merit):', b.dataset.note || '');
+    try { await api('enrollDiscount', { enrollmentId: b.dataset.disc, monthlyDiscount: Number(v), note: note || '' }); toast('Discount saved'); viewCollect(s.id); } catch (x) { toast(errText(x)); }
+  });
+  draw();
+}
+
+/* ---------- unpaid list ---------- */
+async function viewDues() {
+  shell('dues', '<p class="muted">Loading…</p>');
+  try { await ensureLms(); } catch (e) { return pageError(e); }
+  const nowYm = new Date().toISOString().slice(0, 7);
+  $('#main').innerHTML = `<h1>Unpaid list</h1><p class="lede">Students in active batches who owe money, counting months up to the one you choose.</p>
+    <form class="row" id="df" style="margin-bottom:1rem"><select class="t" name="batch" style="max-width:20rem"><option value="">All batches</option>${lms.batches.map(b => `<option value="${esc(b.id)}">${esc(batchLabel(b.id))}</option>`).join('')}</select>
+      <label class="row" style="gap:.4rem"><span class="muted">up to</span><input class="t" type="month" name="upto" value="${nowYm}" style="max-width:11rem"></label><button class="btn">Show</button>
+      <span class="spacer"></span><button type="button" class="btn ghost sm" id="xl" disabled>Download Excel</button></form>
+    <div id="dl"></div>`;
+  const load = async () => {
+    const f = $('#df'); $('#dl').innerHTML = '<p class="muted">Loading…</p>';
+    let r;
+    try { r = await api('duesList', { batchId: f.batch.value, upTo: f.upto.value }); } catch (x) { $('#dl').innerHTML = `<p class="alert">${esc(errText(x))}</p>`; return; }
+    $('#dl').innerHTML = `<div class="stats" style="margin-bottom:1rem"><div class="stat"><b>${r.students.length}</b><span>students owe</span></div><div class="stat"><b>${money(r.total)}</b><span>total due up to ${esc(monthName(r.upTo))}</span></div></div>
+      <div class="card tw"><table><thead><tr><th>ID</th><th>Name</th><th>Mobile</th><th>Guardian</th><th>Months</th><th>Due</th><th></th></tr></thead><tbody>
+      ${r.students.map(s => `<tr><td><code>${esc(s.id)}</code></td><td>${esc(s.name)}</td><td>${esc(s.phone)}</td><td>${esc(s.guardianPhone)}</td><td style="font-size:.85rem">${s.months.map(m => esc(monthName(m))).join(', ')}</td><td class="n"><b>${money(s.due)}</b></td>
+        <td style="text-align:right"><a class="btn sm" href="#/collect/${encodeURIComponent(s.id)}">Collect</a></td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nobody owes anything. 🎉</td></tr>'}</tbody></table></div>`;
+    $('#xl').disabled = !r.students.length;
+    $('#xl').onclick = () => downloadXlsx('unpaid-' + r.upTo, [['Unpaid', [['ID', 'Name', 'Mobile', 'Guardian mobile', 'Months', 'Due (৳)']].concat(r.students.map(s => [s.id, s.name, s.phone, s.guardianPhone, s.months.join(', '), s.due]))]]);
+  };
+  $('#df').onsubmit = e => { e.preventDefault(); load(); };
+  load();
+}
+
+/* ---------- daily cash report ---------- */
+async function viewCashReport() {
+  const today = new Date().toISOString().slice(0, 10);
+  shell('cash', `<h1>Cash report</h1><p class="lede">Money received, by staff member. Use it to match the cash at closing time.</p>
+    <form class="row" id="rf" style="margin-bottom:1rem"><input class="t" type="date" name="from" value="${today}" style="max-width:11rem"><span class="muted">to</span><input class="t" type="date" name="to" value="${today}" style="max-width:11rem"><button class="btn">Show</button>
+      <span class="spacer"></span><button type="button" class="btn ghost sm" id="xl" disabled>Download Excel</button></form><div id="rr"></div>`);
+  const load = async () => {
+    const f = $('#rf'); let r;
+    try { r = await api('feeReport', { from: f.from.value, to: f.to.value }); } catch (x) { $('#rr').innerHTML = `<p class="alert">${esc(errText(x))}</p>`; return; }
+    $('#rr').innerHTML = `<div class="stats"><div class="stat"><b>${money(r.total)}</b><span>received (${r.count} receipts)</span></div>
+        ${r.byStaff.map(x => `<div class="stat"><b>${money(x.total)}</b><span>${esc(x.name)} · ${x.count} receipt${x.count === 1 ? '' : 's'}</span></div>`).join('')}
+        ${r.cancelled ? `<div class="stat"><b style="color:var(--bad)">${money(r.cancelled)}</b><span>cancelled (not counted)</span></div>` : ''}</div>
+      <div class="card tw" style="margin-top:1rem"><table><thead><tr><th>Receipt</th><th>Time</th><th>Student</th><th>Amount</th><th>Received by</th><th></th></tr></thead><tbody>
+      ${r.receipts.map(x => `<tr${x.status === 'CANCELLED' ? ' style="opacity:.55;text-decoration:line-through"' : ''}><td><code>${esc(x.no)}</code></td><td>${esc(when(x.at))}</td><td><a href="#/collect/${encodeURIComponent(x.studentId)}">${esc(x.studentName)}</a> <span class="muted">${esc(x.studentId)}</span></td>
+        <td class="n"><b>${money(x.total)}</b></td><td>${esc(x.receivedByName || x.receivedBy)}</td><td style="text-align:right"><button class="btn ghost sm" data-rc="${esc(x.no)}">Receipt</button></td></tr>`).join('') || '<tr><td colspan="6" class="muted">No receipts in this period.</td></tr>'}</tbody></table></div>`;
+    document.querySelectorAll('[data-rc]').forEach(b => b.onclick = async () => { try { printReceipt((await api('receiptGet', { no: b.dataset.rc })).receipt); } catch (x) { toast(errText(x)); } });
+    $('#xl').disabled = !r.receipts.length;
+    $('#xl').onclick = () => downloadXlsx('cash-' + r.from + '_' + r.to, [['Receipts', [['Receipt', 'Date & time', 'Student ID', 'Student', 'Amount', 'Discount', 'Coupon', 'Received by', 'Status', 'Cancel reason']]
+      .concat(r.receipts.map(x => [x.no, when(x.at), x.studentId, x.studentName, x.total, x.discount, x.coupon, x.receivedByName || x.receivedBy, x.status, x.cancelReason]))],
+      ['By staff', [['Staff', 'Receipts', 'Total']].concat(r.byStaff.map(x => [x.name, x.count, x.total]))]]);
+  };
+  $('#rf').onsubmit = e => { e.preventDefault(); load(); };
+  load();
+}
+
+/* ---------- coupons ---------- */
+async function viewCoupons() {
+  shell('coupons', '<p class="muted">Loading…</p>');
+  let list;
+  try { await ensureLms(); list = (await api('couponList')).coupons; } catch (e) { return pageError(e); }
+  const draw = () => {
+    $('#main').innerHTML = `<div class="row" style="margin-bottom:.2rem"><h1>Coupons & offers</h1><span class="spacer"></span><button class="btn" id="add">+ Add coupon</button></div>
+      <p class="lede">The desk types a code when collecting fees. Coupons reduce course fees (monthly and admission), not other fees.</p>
+      <div class="card tw"><table><thead><tr><th>Code</th><th>Discount</th><th>Courses</th><th>Valid</th><th>Used</th><th>Status</th><th></th></tr></thead><tbody>
+      ${list.map(c => `<tr><td><code>${esc(c.code)}</code>${c.note ? '<br><span class="muted" style="font-size:.85rem">' + esc(c.note) + '</span>' : ''}</td><td>${c.type === 'PERCENT' ? c.value + '%' : money(c.value)}</td>
+        <td style="font-size:.88rem">${c.courses.length ? c.courses.map(id => esc(courseName(id))).join(', ') : 'All courses'}</td><td style="font-size:.88rem">${esc(c.validFrom || '…')} → ${esc(c.validTo || '…')}</td>
+        <td class="n">${c.used}${c.maxUses ? ' / ' + c.maxUses : ''}</td><td>${c.active ? '<span class="pill ok">Active</span>' : '<span class="pill off">Off</span>'}</td>
+        <td style="text-align:right"><button class="btn ghost sm" data-c="${esc(c.code)}">Edit</button></td></tr>`).join('') || '<tr><td colspan="7" class="muted">No coupons yet.</td></tr>'}</tbody></table></div>`;
+    $('#add').onclick = () => couponDialog(null);
+    document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => couponDialog(list.find(c => c.code === b.dataset.c)));
+  };
+  const couponDialog = c => dialog(`<h2>${c ? 'Edit coupon' : 'Add a coupon'}</h2><div class="stack">
+      <div class="grid2"><label class="f"><span>Code</span><input class="t" name="code" value="${esc(c ? c.code : '')}" ${c ? 'readonly' : 'required'} style="text-transform:uppercase" placeholder="EID25"></label>
+        <label class="f"><span>Note (optional)</span><input class="t" name="note" value="${esc(c ? c.note : '')}"></label></div>
+      <div class="grid2"><label class="f"><span>Type</span><select class="t" name="type"><option value="PERCENT">Percentage (%)</option><option value="FIXED" ${c && c.type === 'FIXED' ? 'selected' : ''}>Fixed amount (৳)</option></select></label>
+        <label class="f"><span>Value</span><input class="t" name="value" type="number" min="1" value="${c ? c.value : ''}" required></label></div>
+      <div class="grid2"><label class="f"><span>Valid from</span><input class="t" name="vf" type="date" value="${esc(c ? c.validFrom : '')}"></label><label class="f"><span>Valid to</span><input class="t" name="vt" type="date" value="${esc(c ? c.validTo : '')}"></label></div>
+      <label class="f" style="max-width:12rem"><span>Max uses (0 = unlimited)</span><input class="t" name="max" type="number" min="0" value="${c ? c.maxUses : 0}"></label>
+      <fieldset style="border:1px solid var(--line);border-radius:6px;padding:.6rem .8rem"><legend style="font-weight:600;font-size:.88rem">Only for these courses (none ticked = all)</legend>
+        ${lms.courses.map(x => `<label class="check"><input type="checkbox" name="cr" value="${esc(x.id)}" ${c && c.courses.includes(x.id) ? 'checked' : ''}> ${esc(x.name)}</label>`).join('') || '<span class="muted">No courses yet.</span>'}</fieldset>
+      <label class="check"><input type="checkbox" name="active" ${!c || c.active ? 'checked' : ''}> Active</label>
+    </div>${dlgButtons(c ? 'Save' : 'Add coupon')}`, async (v, f) => {
+    list = (await api('couponSave', { isNew: !c, code: f.code.value.trim(), type: f.type.value, value: f.value.value, validFrom: f.vf.value, validTo: f.vt.value, maxUses: f.max.value,
+      courses: [...f.querySelectorAll('[name=cr]:checked')].map(x => x.value).join(','), active: f.active.checked, note: f.note.value })).coupons;
+    toast('Saved'); draw();
+  });
+  draw();
 }
 
 boot();

@@ -6,11 +6,14 @@
    ========================================================= */
 window.PORTAL_CONFIG = {
   // Paste the Web app URL from Apps Script (Deploy > Manage deployments). It ends with /exec
-  API_URL: 'https://script.google.com/macros/s/AKfycbwgUvgV8Wh1H0PkRvEATrFAVJn5Fz7TQyJHB-alTYA4WkttWU2Yl96C4mz3z_ftyMdh/exec',
+  API_URL:
+    "https://script.google.com/macros/s/AKfycbwgUvgV8Wh1H0PkRvEATrFAVJn5Fz7TQyJHB-alTYA4WkttWU2Yl96C4mz3z_ftyMdh/exec",
   // Name shown at the top of every page and on printed papers.
-  SITE_NAME: 'পদার্থবিজ্ঞান অনুশীলন বই',
+  SITE_NAME: "goal.PHYSICS",
   // Shown to students who forget their PIN.
-  SUPPORT_CONTACT: 'প্রকাশকের হেল্পলাইন: 01XXXXXXXXX',
+  SUPPORT_CONTACT: "প্রকাশকের হেল্পলাইন: 01608370680",
+  // Logo file on this website (shown on pages, receipts and ID cards).
+  LOGO: "goal_logo.png",
   // Folder on this website where question pictures live.
-  IMAGE_FOLDER: 'images/',
+  IMAGE_FOLDER: "images/",
 };
