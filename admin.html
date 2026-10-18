@@ -45,6 +45,8 @@ button, input, select { font: inherit; color: inherit; }
 .side .brand small { display: block; font-family: var(--sans); font-weight: 600; color: var(--ink-text); font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; }
 .side a { display: block; padding: .45rem .6rem; border-radius: 6px; color: var(--text); text-decoration: none; font-weight: 500; }
 .side a:hover { background: var(--desk); }
+.side .navgroup { font-size: .7rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding: .8rem .6rem .2rem; }
+@media (max-width: 760px) { .side .navgroup { display: none; } }
 .side a[aria-current="page"] { background: var(--ink-soft); color: var(--ink-text); font-weight: 600; }
 .side .me { margin-top: auto; padding: .8rem .6rem 0; border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
 .side .me b { display: block; color: var(--text); }
@@ -187,7 +189,7 @@ td a { color: var(--ink-text); font-weight: 600; }
 'use strict';
 const CFG = Object.assign({ API_URL: '', SITE_NAME: 'Portal' }, window.PORTAL_CONFIG || {});
 const API_URL = String(CFG.API_URL || '').trim();
-const ADMIN_VERSION = '2.5';
+const ADMIN_VERSION = '3.0';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = {
@@ -330,25 +332,42 @@ async function signOut() {
 }
 
 /* ---------- shell ---------- */
+const ROLE_NAMES = { super: 'Super admin', manager: 'Manager', teacher: 'Teacher', desk: 'Desk / accountant', editor: 'Editor' };
+const can = p => me && (me.role === 'super' || (me.perms || []).includes(p));
 const NAV = [
-  { id: '', label: 'Books & exams' },
-  { id: 'questions', label: 'Questions' },
-  { id: 'results', label: 'Results' },
-  { id: 'print', label: 'Print papers', href: 'print.html' },
-  { id: 'omr', label: 'OMR sheet maker', href: 'omr-sheet.html' },
-  { id: 'bookids', label: 'Book IDs & QR', super: true },
-  { id: 'students', label: 'Students', super: true },
-  { id: 'settings', label: 'Settings', super: true },
-  { id: 'admins', label: 'Admins', super: true },
-  { id: 'log', label: 'Activity log', super: true },
-  { id: 'account', label: 'My account' },
+  { group: 'Coaching centre' },
+  { id: 'courses', label: 'Courses & batches', show: () => true },
+  { id: 'lstudents', label: 'Students', show: () => can('students.view') },
+  { id: 'mybatches', label: 'Batch lists', show: () => can('students.view') },
+  { group: 'Books & OMR' },
+  { id: '', label: 'Books & exams', show: () => can('books.edit') },
+  { id: 'questions', label: 'Questions', show: () => can('questions') },
+  { id: 'results', label: 'Results', show: () => can('results') },
+  { id: 'print', label: 'Print papers', href: 'print.html', show: () => can('print') },
+  { id: 'omr', label: 'OMR sheet maker', href: 'omr-sheet.html', show: () => can('print') },
+  { id: 'bookids', label: 'Book IDs & QR', show: () => me.role === 'super' },
+  { id: 'students', label: 'Book readers', show: () => me.role === 'super' },
+  { group: 'System' },
+  { id: 'settings', label: 'Settings', show: () => me.role === 'super' },
+  { id: 'admins', label: 'Staff accounts', show: () => me.role === 'super' },
+  { id: 'log', label: 'Activity log', show: () => me.role === 'super' },
+  { id: 'account', label: 'My account', show: () => true },
 ];
 function shell(page, html) {
+  const items = [];
+  NAV.forEach((n, i) => {
+    if (n.group) {
+      const next = NAV.findIndex((x, j) => j > i && x.group);
+      if (NAV.slice(i + 1, next < 0 ? NAV.length : next).some(x => x.show())) items.push(`<span class="navgroup">${n.group}</span>`);
+      return;
+    }
+    if (n.show()) items.push(`<a href="${n.href || '#/' + n.id}" ${n.id === page ? 'aria-current="page"' : ''}>${n.label}</a>`);
+  });
   $('#root').innerHTML = `<div class="shell">
     <nav class="side" aria-label="Admin">
       <div class="brand"><small>Admin</small>${esc(CFG.SITE_NAME)}</div>
-      ${NAV.filter(n => !n.super || me.role === 'super').map(n => `<a href="${n.href || '#/' + n.id}" ${n.id === page ? 'aria-current="page"' : ''}>${n.label}</a>`).join('')}
-      <div class="me"><b>${esc(me.name)}</b>${me.role === 'super' ? 'Super admin' : 'Editor'} · <button class="link" id="out">Sign out</button><br><small>Admin version ${ADMIN_VERSION}</small></div>
+      ${items.join('')}
+      <div class="me"><b>${esc(me.name)}</b>${ROLE_NAMES[me.role] || me.role} · <button class="link" id="out">Sign out</button><br><small>Admin version ${ADMIN_VERSION}</small></div>
     </nav>
     <main id="main">${html}</main></div>`;
   $('#out').onclick = signOut;
@@ -357,6 +376,10 @@ function shell(page, html) {
 function route() {
   if (!me) return boot();
   const [page, arg] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
+  if (page === 'courses') return viewCourses(arg);
+  if (page === 'lstudents' && can('students.view')) return viewLStudents(arg);
+  if (page === 'student' && can('students.view')) return viewLStudent(arg);
+  if (page === 'mybatches' && can('students.view')) return viewMyBatches();
   if (page === 'questions') return viewQuestions(arg);
   if (page === 'import') return viewImport(arg);
   if (page === 'results') return viewResults(arg);
@@ -366,6 +389,7 @@ function route() {
   if (page === 'admins' && me.role === 'super') return viewAdmins();
   if (page === 'log' && me.role === 'super') return viewLog();
   if (page === 'account') return viewAccount();
+  if (!can('books.edit')) return viewCourses();
   return viewCatalog();
 }
 window.addEventListener('hashchange', () => { if (me) route(); });
@@ -508,11 +532,11 @@ async function viewAdmins() {
   try { list = (await api('adminList')).admins; } catch (e) { if (e.code !== 'NOT_SIGNED_IN') $('#main').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; return; }
   const draw = () => {
     $('#main').innerHTML = `
-      <div class="row" style="margin-bottom:.2rem"><h1>Admins</h1><span class="spacer"></span><button class="btn" id="add">+ Add admin</button></div>
-      <p class="lede"><b>Super admins</b> can do everything. <b>Editors</b> manage books, exams and questions and can view results, but can't manage book IDs, students, admins or settings.</p>
+      <div class="row" style="margin-bottom:.2rem"><h1>Staff accounts</h1><span class="spacer"></span><button class="btn" id="add">+ Add staff</button></div>
+      <p class="lede"><b>Super admin:</b> everything. <b>Manager:</b> courses, batches, students, books and questions. <b>Teacher:</b> their own batches' students, results and printing. <b>Desk / accountant:</b> registers, approves and enrolls students. <b>Editor:</b> books, exams, questions and course chapters.</p>
       <div class="card tw"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>
       ${list.map(a => `<tr><td>${esc(a.name)}</td><td>${esc(a.email)}</td>
-        <td>${a.role === 'super' ? '<span class="pill super">Super admin</span>' : '<span class="pill off">Editor</span>'}</td>
+        <td>${a.role === 'super' ? '<span class="pill super">Super admin</span>' : `<span class="pill off">${ROLE_NAMES[a.role] || a.role}</span>`}</td>
         <td>${a.active ? '<span class="pill ok">Active</span>' : '<span class="pill off">Disabled</span>'}</td>
         <td class="muted">${a.lastLogin ? esc(new Date(a.lastLogin).toLocaleString()) : 'Never'}</td>
         <td style="text-align:right"><button class="btn ghost sm" data-a="${esc(a.email)}">Edit</button></td></tr>`).join('')}
@@ -523,7 +547,7 @@ async function viewAdmins() {
   const adminDialog = a => dialog(`<h2>${a ? 'Edit admin' : 'Add an admin'}</h2><div class="stack">
       <label class="f"><span>Name</span><input class="t" name="name" value="${esc(a ? a.name : '')}" required></label>
       <label class="f"><span>Email</span><input class="t" name="email" type="email" value="${esc(a ? a.email : '')}" ${a ? 'readonly' : 'required'}></label>
-      <div class="grid2"><label class="f"><span>Role</span><select class="t" name="role"><option value="editor">Editor</option><option value="super" ${a && a.role === 'super' ? 'selected' : ''}>Super admin</option></select></label>
+      <div class="grid2"><label class="f"><span>Role</span><select class="t" name="role">${Object.keys(ROLE_NAMES).map(r => `<option value="${r}" ${(a ? a.role : 'teacher') === r ? 'selected' : ''}>${ROLE_NAMES[r]}</option>`).join('')}</select></label>
       <label class="f"><span>&nbsp;</span><span class="check"><input type="checkbox" name="active" ${!a || a.active ? 'checked' : ''}> Can sign in</span></label></div>
       <label class="f"><span>${a ? 'New password (leave empty to keep)' : 'Password'}</span><input class="t" name="password" type="password" autocomplete="new-password" ${a ? '' : 'required'} minlength="8"><small>At least 8 characters. Share it with them privately; they can change it under My account.</small></label>
     </div>${dlgButtons(a ? 'Save' : 'Add admin')}`,
@@ -1324,6 +1348,322 @@ function githubSettings(g) {
     catch (x) { out.innerHTML = `<span style="color:var(--bad)">${esc(errText(x))}</span>`; }
   };
   return box;
+}
+
+/* =========================================================
+   COACHING CENTRE: courses & batches, students, batch lists
+   ========================================================= */
+Object.assign(ERR, {
+  NO_PERMISSION: 'Your role doesn’t allow this.', COURSE_HAS_BATCHES: 'Delete this course’s batches first.', COURSE_HAS_SUBJECTS: 'Delete this course’s subjects first.',
+  BATCH_HAS_STUDENTS: 'Students have been enrolled in this batch, so it can’t be deleted. Set its status to Closed instead.',
+  SUBJECT_HAS_CHAPTERS: 'Delete this subject’s chapters first.', COURSE_NOT_FOUND: 'Course not found. Reload the page.',
+  BAD_NUMBER: 'Fees and seats must be 0 or more.', BAD_DATE: 'Check the dates (the end can’t be before the start).',
+  INVALID_PHONE: 'Enter a valid mobile number like 017XXXXXXXX.', INVALID_GUARDIAN_PHONE: 'Enter a valid guardian mobile number.',
+  PHONE_TAKEN: 'Another student already uses this mobile number.', STUDENT_NOT_FOUND: 'Student not found.',
+  STUDENT_NOT_ACTIVE: 'Approve the student before enrolling them.', BATCH_NOT_FOUND: 'Choose a batch.', BATCH_CLOSED: 'That batch is closed.',
+  ALREADY_ENROLLED: 'Already enrolled in this batch.', ENROLLMENT_NOT_FOUND: 'Enrollment not found. Reload the page.',
+});
+let lms = null;
+async function ensureLms(fresh) { if (!lms || fresh) lms = await api('lmsCatalog'); return lms; }
+const staffName = email => ((lms && lms.staff.find(s => s.email === email)) || {}).name || email;
+const courseName = id => ((lms && lms.courses.find(c => c.id === id)) || {}).name || id;
+const batchLabel = id => { const b = lms && lms.batches.find(x => x.id === id); return b ? courseName(b.courseId) + ' › ' + b.name : id; };
+const money = n => '৳' + Number(n || 0).toLocaleString('en-IN');
+const statusPill = st => ({ ACTIVE: '<span class="pill ok">Active</span>', PENDING: '<span class="pill" style="color:#b7791f">Waiting approval</span>', BLOCKED: '<span class="pill" style="color:var(--bad)">Blocked</span>', ENDED: '<span class="pill off">Ended</span>', OPEN: '<span class="pill ok">Open for admission</span>', RUNNING: '<span class="pill super">Running</span>', CLOSED: '<span class="pill off">Closed</span>' }[st] || esc(st));
+
+/* ---------- courses & batches ---------- */
+let selCourse = null;
+async function viewCourses(courseId) {
+  shell('courses', '<p class="muted">Loading…</p>');
+  try { await ensureLms(true); } catch (e) { return pageError(e); }
+  if (courseId) selCourse = courseId;
+  renderCourses();
+}
+function renderCourses() {
+  const d = lms, cc = can('courses'), cs = can('syllabus');
+  if (!d.courses.some(c => c.id === selCourse)) selCourse = d.courses.length ? d.courses[0].id : null;
+  const c = d.courses.find(x => x.id === selCourse);
+  const batches = c ? d.batches.filter(b => b.courseId === c.id) : [];
+  const subs = c ? d.subjects.filter(s => s.courseId === c.id) : [];
+  $('#main').innerHTML = `
+    <div class="row" style="margin-bottom:.2rem"><h1>Courses & batches</h1><span class="spacer"></span>${cc ? '<button class="btn" id="addCourse">+ Add course</button>' : ''}</div>
+    <p class="lede">A <b>course</b> (e.g. HSC Physics 2026) runs in one or more <b>batches</b>, each with its own days, time, room, teachers and monthly fee. The course's <b>subjects and chapters</b> are its syllabus.</p>
+    ${d.courses.length ? `<div class="titles" role="group" aria-label="Courses">${d.courses.map(x => `<button data-course="${esc(x.id)}" aria-pressed="${x.id === selCourse}">${esc(x.name)}${x.active ? '' : ' (inactive)'}</button>`).join('')}</div>` : '<p class="note">No courses yet.</p>'}
+    ${c ? `<div class="card stack">
+      <div class="row"><div><h2>${esc(c.name)}</h2><span class="muted">${esc(c.description) || 'No description'}</span></div><span class="spacer"></span>
+        ${cc ? '<button class="btn ghost sm" id="editCourse">Edit course</button><button class="btn sm" id="addBatch">+ Add batch</button>' : ''}</div>
+      ${batches.length ? `<div class="tw"><table><thead><tr><th>Batch</th><th>Days & time</th><th>Room</th><th>Teachers</th><th>Students</th><th>Monthly fee</th><th>Status</th><th></th></tr></thead><tbody>
+        ${batches.map(b => `<tr><td><b>${esc(b.name)}</b><br><span class="muted" style="font-size:.82rem">${esc(b.startDate || '')}${b.endDate ? ' → ' + esc(b.endDate) : ''}</span></td>
+          <td>${esc(b.days)}<br><span class="muted">${esc(b.time)}</span></td><td>${esc(b.room)}</td><td>${b.teachers.map(t => esc(staffName(t))).join('<br>') || '<span class="muted">—</span>'}</td>
+          <td class="n">${b.enrolled}${b.seats ? ' / ' + b.seats : ''}</td><td class="n">${money(b.monthlyFee)}${b.admissionFee ? `<br><span class="muted" style="font-size:.8rem">+ ${money(b.admissionFee)} admission</span>` : ''}</td>
+          <td>${statusPill(b.status)}</td><td style="text-align:right;white-space:nowrap"><a class="btn ghost sm" href="#/lstudents/batch:${encodeURIComponent(b.id)}">Students</a>${cc ? ` <button class="btn ghost sm" data-batch="${esc(b.id)}">Edit</button>` : ''}</td></tr>`).join('')}
+        </tbody></table></div>` : '<p class="muted">No batches yet.</p>'}
+    </div>
+    <div class="card stack" style="margin-top:1rem">
+      <div class="row"><h2>Syllabus</h2><span class="spacer"></span>${cs ? '<button class="btn sm" id="addSub">+ Add subject</button>' : ''}</div>
+      ${subs.length ? subs.map(sb => { const chs = d.chapters.filter(ch => ch.subjectId === sb.id); return `<section class="subj">
+        <header><h2 style="font-size:1rem">${esc(sb.name)}</h2><span class="muted">${chs.length} chapter${chs.length === 1 ? '' : 's'}</span><span class="spacer"></span>
+          ${cs ? `<button class="btn ghost sm" data-sub="${esc(sb.id)}">Edit</button><button class="btn sm" data-addch="${esc(sb.id)}">+ Chapter</button>` : ''}</header>
+        <ol style="margin:.2rem 0 0;padding-left:1.4rem">${chs.map(ch => `<li>${esc(ch.name)} ${cs ? `<button class="link" style="font-size:.8rem;margin-left:.3rem" data-ch="${esc(ch.id)}">edit</button>` : ''}</li>`).join('') || '<li class="muted" style="list-style:none;margin-left:-1.4rem">No chapters yet.</li>'}</ol></section>`; }).join('')
+        : '<p class="muted" style="margin:0">No subjects yet, e.g. "Physics 1st paper".</p>'}
+    </div>` : ''}`;
+  document.querySelectorAll('[data-course]').forEach(b => b.onclick = () => { selCourse = b.dataset.course; renderCourses(); });
+  if ($('#addCourse')) $('#addCourse').onclick = () => courseDialog(null);
+  if ($('#editCourse')) $('#editCourse').onclick = () => courseDialog(c);
+  if ($('#addBatch')) $('#addBatch').onclick = () => batchDialog(null);
+  document.querySelectorAll('[data-batch]').forEach(b => b.onclick = () => batchDialog(d.batches.find(x => x.id === b.dataset.batch)));
+  if ($('#addSub')) $('#addSub').onclick = () => csubDialog(null);
+  document.querySelectorAll('[data-sub]').forEach(b => b.onclick = () => csubDialog(d.subjects.find(x => x.id === b.dataset.sub)));
+  document.querySelectorAll('[data-addch]').forEach(b => b.onclick = () => chapterDialog(null, b.dataset.addch));
+  document.querySelectorAll('[data-ch]').forEach(b => b.onclick = () => { const ch = d.chapters.find(x => x.id === b.dataset.ch); chapterDialog(ch, ch.subjectId); });
+}
+function courseDialog(c) {
+  dialog(`<h2>${c ? 'Edit course' : 'Add a course'}</h2><div class="stack">
+    <label class="f"><span>Course name</span><input class="t" name="name" value="${esc(c ? c.name : '')}" required maxlength="100" placeholder="HSC Physics 2026"></label>
+    <label class="f"><span>Short description (optional)</span><input class="t" name="desc" value="${esc(c ? c.description : '')}" maxlength="500"></label>
+    <div class="grid2"><label class="f"><span>Order</span><input class="t" name="order" type="number" value="${c ? c.order : lms.courses.length + 1}"></label>
+      <label class="f"><span>&nbsp;</span><span class="check"><input type="checkbox" name="active" ${!c || c.active ? 'checked' : ''}> Active</span></label></div>
+  </div>${dlgButtons(c ? 'Save' : 'Add course', c ? 'Delete course' : '')}`, async (v, f) => {
+    if (v === 'delete') { if (!confirm(`Delete "${c.name}"?`)) return false; lms = await api('courseDelete', { id: c.id }); }
+    else { lms = await api('courseSave', { id: c ? c.id : '', name: f.name.value, description: f.desc.value, order: f.order.value, active: f.active.checked }); if (!c) selCourse = lms.courses[lms.courses.length - 1].id; }
+    toast('Saved'); renderCourses();
+  });
+}
+function batchDialog(b) {
+  const teachers = lms.staff.filter(s => ['teacher', 'manager', 'super'].includes(s.role));
+  dialog(`<h2>${b ? 'Edit batch' : 'Add a batch'}</h2><div class="stack">
+    <div class="grid2"><label class="f"><span>Batch name</span><input class="t" name="name" value="${esc(b ? b.name : '')}" required placeholder="Morning A"></label>
+      <label class="f"><span>Status</span><select class="t" name="status">${['OPEN', 'RUNNING', 'CLOSED'].map(s => `<option value="${s}" ${(b ? b.status : 'OPEN') === s ? 'selected' : ''}>${{ OPEN: 'Open for admission', RUNNING: 'Running (full / no new admission)', CLOSED: 'Closed' }[s]}</option>`).join('')}</select></label></div>
+    <div class="grid2"><label class="f"><span>Days</span><input class="t" name="days" value="${esc(b ? b.days : '')}" placeholder="Sat, Mon, Wed"></label>
+      <label class="f"><span>Time</span><input class="t" name="time" value="${esc(b ? b.time : '')}" placeholder="4:00–5:30 PM"></label></div>
+    <div class="grid2"><label class="f"><span>Room</span><input class="t" name="room" value="${esc(b ? b.room : '')}"></label>
+      <label class="f"><span>Seats (0 = no limit)</span><input class="t" name="seats" type="number" min="0" value="${b ? b.seats : 0}"></label></div>
+    <div class="grid2"><label class="f"><span>Monthly fee (৳)</span><input class="t" name="fee" type="number" min="0" value="${b ? b.monthlyFee : 0}"></label>
+      <label class="f"><span>Admission fee (৳)</span><input class="t" name="adm" type="number" min="0" value="${b ? b.admissionFee : 0}"></label></div>
+    <div class="grid2"><label class="f"><span>Starts</span><input class="t" name="sd" type="date" value="${esc(b ? b.startDate : '')}"></label>
+      <label class="f"><span>Ends (optional)</span><input class="t" name="ed" type="date" value="${esc(b ? b.endDate : '')}"></label></div>
+    <fieldset style="border:1px solid var(--line);border-radius:6px;padding:.6rem .8rem"><legend style="font-weight:600;font-size:.88rem">Teachers</legend>
+      ${teachers.length ? teachers.map(t => `<label class="check"><input type="checkbox" name="t" value="${esc(t.email)}" ${b && b.teachers.includes(t.email) ? 'checked' : ''}> ${esc(t.name)} <span class="muted">(${ROLE_NAMES[t.role]})</span></label>`).join('') : '<p class="muted" style="margin:0">No teacher accounts yet. Add them under Staff accounts.</p>'}</fieldset>
+  </div>${dlgButtons(b ? 'Save' : 'Add batch', b ? 'Delete batch' : '')}`, async (v, f) => {
+    if (v === 'delete') { if (!confirm(`Delete batch "${b.name}"?`)) return false; lms = await api('batchDelete', { id: b.id }); }
+    else lms = await api('batchSave', { id: b ? b.id : '', courseId: b ? b.courseId : selCourse, name: f.name.value, status: f.status.value, days: f.days.value, time: f.time.value, room: f.room.value,
+      seats: f.seats.value, monthlyFee: f.fee.value, admissionFee: f.adm.value, startDate: f.sd.value, endDate: f.ed.value, teachers: [...f.querySelectorAll('[name=t]:checked')].map(x => x.value).join(',') });
+    toast('Saved'); renderCourses();
+  });
+}
+function csubDialog(sb) {
+  dialog(`<h2>${sb ? 'Edit subject' : 'Add a subject'}</h2><div class="stack">
+    <label class="f"><span>Subject name</span><input class="t" name="name" value="${esc(sb ? sb.name : '')}" required placeholder="Physics 1st paper"></label>
+    <label class="f"><span>Order</span><input class="t" name="order" type="number" value="${sb ? sb.order : lms.subjects.filter(x => x.courseId === selCourse).length + 1}"></label>
+  </div>${dlgButtons(sb ? 'Save' : 'Add subject', sb ? 'Delete subject' : '')}`, async (v, f) => {
+    if (v === 'delete') { if (!confirm(`Delete "${sb.name}"?`)) return false; lms = await api('csubjectDelete', { id: sb.id }); }
+    else lms = await api('csubjectSave', { id: sb ? sb.id : '', courseId: sb ? sb.courseId : selCourse, name: f.name.value, order: f.order.value });
+    toast('Saved'); renderCourses();
+  });
+}
+function chapterDialog(ch, subjectId) {
+  dialog(`<h2>${ch ? 'Edit chapter' : 'Add a chapter'}</h2><div class="stack">
+    <label class="f"><span>Chapter name</span><input class="t" name="name" value="${esc(ch ? ch.name : '')}" required placeholder="Vectors"></label>
+    <label class="f"><span>Order</span><input class="t" name="order" type="number" value="${ch ? ch.order : lms.chapters.filter(x => x.subjectId === subjectId).length + 1}"></label>
+  </div>${dlgButtons(ch ? 'Save' : 'Add chapter', ch ? 'Delete chapter' : '')}`, async (v, f) => {
+    if (v === 'delete') { if (!confirm(`Delete "${ch.name}"?`)) return false; lms = await api('chapterDelete', { id: ch.id }); }
+    else lms = await api('chapterSave', { id: ch ? ch.id : '', subjectId, name: f.name.value, order: f.order.value });
+    toast('Saved'); renderCourses();
+  });
+}
+
+/* ---------- students list ---------- */
+let stuFilter = { status: '', q: '', batchId: '' };
+async function viewLStudents(arg) {
+  shell('lstudents', '<p class="muted">Loading…</p>');
+  try { await ensureLms(); } catch (e) { return pageError(e); }
+  if (arg && arg.startsWith('batch:')) stuFilter = { status: '', q: '', batchId: arg.slice(6) };
+  else if (arg === 'pending') stuFilter = { status: 'PENDING', q: '', batchId: '' };
+  $('#main').innerHTML = `
+    <div class="row" style="margin-bottom:.2rem"><h1>Students</h1><span class="spacer"></span>${can('students.manage') ? '<button class="btn" id="addStu">+ Register a student</button>' : ''}</div>
+    <p class="lede">${me.role === 'teacher' ? 'Students in your batches.' : 'Students who register on the student site wait here until the desk approves them. Students registered at the desk are active straight away.'}</p>
+    <nav class="tabs" id="stabs"></nav>
+    <form class="row" id="sf" style="margin-bottom:1rem">
+      <input class="t" name="q" placeholder="Search name, ID, phone, school" style="max-width:18rem" value="${esc(stuFilter.q)}">
+      <select class="t" name="batch" style="max-width:20rem"><option value="">All batches</option>${lms.batches.map(b => `<option value="${esc(b.id)}" ${b.id === stuFilter.batchId ? 'selected' : ''}>${esc(batchLabel(b.id))}</option>`).join('')}</select>
+      <button class="btn ghost">Search</button>
+      ${stuFilter.batchId ? '<button type="button" class="btn ghost sm" id="cardsAll">Print ID cards for this batch</button>' : ''}
+    </form>
+    <div class="card tw" id="slist"><p class="muted">Loading…</p></div>`;
+  if ($('#addStu')) $('#addStu').onclick = () => studentDialog(null);
+  $('#sf').onsubmit = e => { e.preventDefault(); stuFilter.q = e.target.q.value.trim(); stuFilter.batchId = e.target.batch.value; viewLStudents(); };
+  let r;
+  try { r = await api('studentsList', stuFilter); } catch (e) { $('#slist').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; return; }
+  if (r.counts) $('#stabs').innerHTML = [['', 'All', r.counts.total], ['PENDING', 'Waiting approval', r.counts.pending], ['ACTIVE', 'Active', r.counts.active], ['BLOCKED', 'Blocked', r.counts.blocked]]
+    .map(([k, l, n]) => `<a href="#" data-st="${k}" ${stuFilter.status === k ? 'aria-current="page"' : ''}>${l} ${n}</a>`).join('');
+  document.querySelectorAll('[data-st]').forEach(a => a.onclick = e => { e.preventDefault(); stuFilter.status = a.dataset.st; viewLStudents(); });
+  $('#slist').innerHTML = `<table><thead><tr><th>ID</th><th>Name</th><th>Mobile</th><th>Guardian</th><th>School / class</th><th>Batches</th><th>Status</th><th></th></tr></thead><tbody>
+    ${r.students.map(s => `<tr><td><code>${esc(s.id)}</code></td><td><a href="#/student/${encodeURIComponent(s.id)}">${esc(s.name)}</a></td><td>${esc(s.phone)}</td><td>${esc(s.guardianPhone)}</td>
+      <td>${esc(s.institution)}${s.classLevel ? '<br><span class="muted">' + esc(s.classLevel) + '</span>' : ''}</td><td style="font-size:.88rem">${s.batches.map(b => esc(batchLabel(b))).join('<br>') || '<span class="muted">—</span>'}</td>
+      <td>${statusPill(s.status)}</td><td style="text-align:right;white-space:nowrap">${s.status === 'PENDING' && can('students.manage') ? `<button class="btn sm" data-approve="${esc(s.id)}">Approve</button> ` : ''}<a class="btn ghost sm" href="#/student/${encodeURIComponent(s.id)}">Open</a></td></tr>`).join('') || '<tr><td colspan="8" class="muted">No students found.</td></tr>'}
+    </tbody></table>${r.matched > r.students.length ? `<p class="muted">Showing the newest ${r.students.length} of ${r.matched}. Search to narrow down.</p>` : ''}`;
+  document.querySelectorAll('[data-approve]').forEach(b => b.onclick = async () => { try { await api('studentStatus', { studentId: b.dataset.approve, status: 'ACTIVE' }); toast('Approved'); viewLStudents(); } catch (e) { toast(errText(e)); } });
+  if ($('#cardsAll')) $('#cardsAll').onclick = () => idCards(r.students.filter(s => s.status === 'ACTIVE'));
+}
+
+/* ---------- one student ---------- */
+async function viewLStudent(id) {
+  shell('lstudents', '<p class="muted">Loading…</p>');
+  let r;
+  try { await ensureLms(); r = await api('studentGet', { studentId: id }); } catch (e) { return pageError(e); }
+  const s = r.student, m = can('students.manage');
+  const photo = s.photo ? `<img src="${esc(imgSrc(s.photo))}" alt="" style="width:6rem;height:7rem;object-fit:cover;border-radius:6px;border:1px solid var(--line)">` : `<div style="width:6rem;height:7rem;border-radius:6px;background:var(--desk);display:grid;place-items:center;font-size:2rem;color:var(--muted)">${esc((s.name || '?')[0])}</div>`;
+  const openBatches = lms.batches.filter(b => b.status !== 'CLOSED' && !r.enrollments.some(e => e.batchId === b.id && e.status === 'ACTIVE'));
+  $('#main').innerHTML = `
+    <p style="margin:0 0 .3rem"><a class="link" href="#/lstudents">← Students</a></p>
+    <div class="card" style="display:grid;grid-template-columns:auto 1fr;gap:1.2rem;align-items:start">
+      ${photo}
+      <div class="stack" style="margin:0">
+        <div class="row"><div><h1 style="margin:0">${esc(s.name)}</h1><span class="muted"><code>${esc(s.id)}</code> · registered ${esc(when(s.createdAt))}${s.createdBy === 'self' ? ' online' : ' at the desk'}</span></div><span class="spacer"></span>${statusPill(s.status)}</div>
+        <div class="grid2" style="gap:.3rem 1.5rem;font-size:.95rem">
+          <div><span class="muted">Mobile (sign-in):</span> ${esc(s.phone)}</div><div><span class="muted">Guardian:</span> ${esc(s.guardianName)} ${esc(s.guardianPhone)}</div>
+          <div><span class="muted">School / college:</span> ${esc(s.institution)}</div><div><span class="muted">Class:</span> ${esc(s.classLevel)}</div>
+          <div style="grid-column:1/-1"><span class="muted">Address:</span> ${esc(s.address)}</div>
+          ${s.notes ? `<div style="grid-column:1/-1"><span class="muted">Notes:</span> ${esc(s.notes)}</div>` : ''}
+        </div>
+        ${m ? `<div class="row">
+          ${s.status === 'PENDING' ? '<button class="btn" id="approve">Approve</button>' : ''}
+          <button class="btn ghost sm" id="edit">Edit</button><button class="btn ghost sm" id="reset">Reset password</button>
+          <button class="btn ghost sm" id="card" ${s.status === 'ACTIVE' ? '' : 'disabled'}>Print ID card</button>
+          <button class="btn ${s.status === 'BLOCKED' ? 'ghost' : 'danger'} sm" id="block">${s.status === 'BLOCKED' ? 'Unblock' : 'Block'}</button></div>` : ''}
+      </div>
+    </div>
+    <div class="card stack" style="margin-top:1rem">
+      <h2>Batches</h2>
+      ${r.enrollments.length ? `<div class="tw"><table><thead><tr><th>Batch</th><th>From</th><th>To</th><th>Status</th><th></th></tr></thead><tbody>
+        ${r.enrollments.map(e => `<tr><td>${esc(batchLabel(e.batchId))}</td><td>${esc(e.startDate)}</td><td>${esc(e.endDate) || '<span class="muted">ongoing</span>'}</td><td>${statusPill(e.status)}</td>
+          <td style="text-align:right">${e.status === 'ACTIVE' && can('enroll') ? `<button class="btn ghost sm" data-end="${esc(e.id)}">End</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted" style="margin:0">Not in any batch yet.</p>'}
+      ${can('enroll') && s.status === 'ACTIVE' ? `<form class="row" id="enf" style="border-top:1px dashed var(--line);padding-top:.8rem">
+        <select class="t" name="batch" required style="max-width:24rem"><option value="">Add to a batch…</option>${openBatches.map(b => `<option value="${esc(b.id)}">${esc(batchLabel(b.id))} · ${esc(b.days)} ${esc(b.time)} · ${b.enrolled}${b.seats ? '/' + b.seats : ''} students</option>`).join('')}</select>
+        <label class="row" style="gap:.4rem"><span class="muted">from</span><input class="t" name="start" type="date" value="${new Date().toISOString().slice(0, 10)}" style="max-width:11rem"></label>
+        <button class="btn">Enroll</button><span class="err" style="color:var(--bad)"></span></form>` : ''}
+      ${s.status === 'PENDING' ? '<p class="note" style="margin:0">Approve the student before adding them to a batch.</p>' : ''}
+    </div>`;
+  const reload = () => viewLStudent(s.id);
+  if (!m) return;
+  if ($('#approve')) $('#approve').onclick = async () => { try { await api('studentStatus', { studentId: s.id, status: 'ACTIVE' }); toast('Approved'); reload(); } catch (e) { toast(errText(e)); } };
+  $('#edit').onclick = () => studentDialog(s);
+  $('#reset').onclick = async () => {
+    if (!confirm(`Make a new password for ${s.name}? Their old password stops working, and they're signed out on every phone.`)) return;
+    try { const x = await api('studentResetPassword', { studentId: s.id }); passwordSlip(s, x.tempPassword); } catch (e) { toast(errText(e)); }
+  };
+  $('#card').onclick = () => idCards([s]);
+  $('#block').onclick = async () => {
+    const to = s.status === 'BLOCKED' ? 'ACTIVE' : 'BLOCKED';
+    if (to === 'BLOCKED' && !confirm(`Block ${s.name}? They can no longer sign in.`)) return;
+    try { await api('studentStatus', { studentId: s.id, status: to }); toast('Saved'); reload(); } catch (e) { toast(errText(e)); }
+  };
+  document.querySelectorAll('[data-end]').forEach(b => b.onclick = async () => {
+    const end = prompt('Last day in this batch (YYYY-MM-DD):', new Date().toISOString().slice(0, 10));
+    if (!end) return;
+    try { await api('enrollEnd', { enrollmentId: b.dataset.end, endDate: end.trim() }); toast('Ended'); lms = null; reload(); } catch (e) { toast(errText(e)); }
+  });
+  if ($('#enf')) $('#enf').onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target, bt = lms.batches.find(b => b.id === f.batch.value);
+    let over = false;
+    if (bt && bt.seats && bt.enrolled >= bt.seats) { if (!confirm(`${bt.name} is full (${bt.enrolled}/${bt.seats}). Enroll anyway?`)) return; over = true; }
+    try { await api('enrollSave', { studentId: s.id, batchId: f.batch.value, startDate: f.start.value, overSeats: over }); toast('Enrolled'); lms = null; reload(); }
+    catch (x) { f.querySelector('.err').textContent = errText(x); }
+  };
+}
+
+function studentDialog(s) {
+  dialog(`<h2>${s ? 'Edit student' : 'Register a student'}</h2><div class="stack">
+    <div class="grid2"><label class="f"><span>Name</span><input class="t" name="name" value="${esc(s ? s.name : '')}" required></label>
+      <label class="f"><span>Mobile (used to sign in)</span><input class="t" name="phone" type="tel" value="${esc(s ? s.phone : '')}" required placeholder="017XXXXXXXX"></label></div>
+    <div class="grid2"><label class="f"><span>Guardian's name</span><input class="t" name="gname" value="${esc(s ? s.guardianName : '')}"></label>
+      <label class="f"><span>Guardian's mobile</span><input class="t" name="gphone" type="tel" value="${esc(s ? s.guardianPhone : '')}"></label></div>
+    <div class="grid2"><label class="f"><span>School / college</span><input class="t" name="inst" value="${esc(s ? s.institution : '')}"></label>
+      <label class="f"><span>Class</span><input class="t" name="cls" value="${esc(s ? s.classLevel : '')}" placeholder="HSC 1st year"></label></div>
+    <label class="f"><span>Address</span><input class="t" name="addr" value="${esc(s ? s.address : '')}"></label>
+    <div><label class="f"><span>Photo (optional)</span><input class="t" name="photo" value="${esc(s ? s.photo : '')}" placeholder="file name"></label>
+      <div class="row" style="margin-top:.35rem"><button type="button" class="btn ghost sm" id="upPhoto">Upload photo…</button><input type="file" accept="image/*" id="photoFile" hidden><small class="muted">Uses picture upload (Settings).</small></div></div>
+    <label class="f"><span>Staff notes (students don't see these)</span><input class="t" name="notes" value="${esc(s ? s.notes : '')}"></label>
+    ${s ? '' : '<p class="note" style="margin:0">The student is active at once and gets a 6-digit password to print for them.</p>'}
+  </div>${dlgButtons(s ? 'Save' : 'Register')}`, async (v, f) => {
+    const r = await api('studentSave', { id: s ? s.id : '', name: f.name.value, phone: f.phone.value, guardianName: f.gname.value, guardianPhone: f.gphone.value,
+      institution: f.inst.value, classLevel: f.cls.value, address: f.addr.value, photo: f.photo.value, notes: f.notes.value });
+    if (s) { toast('Saved'); viewLStudent(s.id); }
+    else { location.hash = '#/student/' + encodeURIComponent(r.student.id); setTimeout(() => passwordSlip(r.student, r.tempPassword), 400); }
+  }, f => {
+    $('#upPhoto').onclick = () => $('#photoFile').click();
+    $('#photoFile').onchange = async e => {
+      const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+      const box = f.querySelector('.err'); box.hidden = true;
+      try { toast('Uploading photo…'); f.photo.value = await uploadPicture(file, 'student', Date.now().toString(36)); toast('Photo uploaded'); }
+      catch (x) { box.hidden = false; box.textContent = errText(x); }
+    };
+  });
+}
+
+// Printable slip with the sign-in details (new student or new password).
+function passwordSlip(s, pw) {
+  const site = location.href.replace(/[#?].*$/, '').replace(/admin\.html$/, '') + 'student.html';
+  dialog(`<h2>Sign-in details for ${esc(s.name)}</h2>
+    <div class="note" style="font-size:1.05rem;line-height:1.9">Student ID: <b>${esc(s.id)}</b><br>Mobile: <b>${esc(s.phone)}</b><br>Password: <b style="font-size:1.4rem;letter-spacing:.15em">${esc(pw)}</b></div>
+    <p class="muted">Give this to the student. They sign in at <b>${esc(site)}</b> and can change the password there. It isn't shown again.</p>
+    <div class="actions"><button class="btn ghost" value="print" type="button" id="slipPrint">Print slip</button><button class="btn" value="cancel">Done</button></div>`, async () => {});
+  $('#slipPrint').onclick = () => {
+    const w = window.open('', '_blank'); if (!w) { toast('Allow pop-ups to print.'); return; }
+    w.document.write(`<!doctype html><meta charset="utf-8"><title>Sign-in slip</title><style>body{font:15px/1.7 'Hind Siliguri',system-ui,sans-serif;margin:12mm}.s{border:1px dashed #888;padding:8mm;max-width:120mm}h2{margin:0 0 3mm}b{font-size:1.1em}</style>
+      <div class="s"><h2>${esc(CFG.SITE_NAME)}</h2>Student ID: <b>${esc(s.id)}</b><br>Name: <b>${esc(s.name)}</b><br>Mobile: <b>${esc(s.phone)}</b><br>Password: <b>${esc(pw)}</b><br><small>Sign in at ${esc(site)} and change your password.</small></div><script>print()<\/script>`);
+    w.document.close();
+  };
+}
+
+// ID cards (85.6 × 54 mm), 10 per A4 page.
+function idCards(list) {
+  if (!list.length) { toast('No active students to print.'); return; }
+  const qr = text => { if (typeof qrcode !== 'function') return ''; const q = qrcode(0, 'M'); q.addData(text); q.make(); const m = q.getModuleCount(); let d = '';
+    for (let r = 0; r < m; r++) for (let c = 0; c < m; c++) if (q.isDark(r, c)) d += `M${c} ${r}h1v1h-1z`;
+    return `<svg viewBox="-1 -1 ${m + 2} ${m + 2}"><rect x="-1" y="-1" width="${m + 2}" height="${m + 2}" fill="#fff"/><path d="${d}"/></svg>`; };
+  const w = window.open('', '_blank'); if (!w) { toast('Allow pop-ups to print.'); return; }
+  const base = location.href.replace(/[#?].*$/, '').replace(/admin\.html$/, '');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>ID cards</title>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@500;700&display=swap" rel="stylesheet">
+    <style>body{margin:0;font-family:'Hind Siliguri',sans-serif}.bar{padding:10px;font:14px system-ui}.g{display:grid;grid-template-columns:repeat(2,85.6mm);gap:4mm;padding:8mm;justify-content:center}
+    .c{width:85.6mm;height:54mm;border:.3mm solid #999;border-radius:3mm;overflow:hidden;display:grid;grid-template-rows:auto 1fr;break-inside:avoid}
+    .h{background:#a3285c;color:#fff;font-weight:700;font-size:10pt;padding:1.5mm 3mm}.b{display:grid;grid-template-columns:20mm 1fr 15mm;gap:2.5mm;padding:2.5mm 3mm;align-items:center}
+    .p{width:20mm;height:25mm;object-fit:cover;border-radius:1.5mm;background:#eee;display:grid;place-items:center;font-size:18pt;color:#999}
+    .n{font-weight:700;font-size:10.5pt;line-height:1.2}.i{font:700 10pt ui-monospace,monospace;margin-top:1mm}.m{font-size:7.5pt;color:#333;line-height:1.35;margin-top:1mm}.q svg{width:15mm;height:15mm}
+    @media print{.bar{display:none}.g{padding:0}@page{margin:10mm}}</style></head><body>
+    <div class="bar">${list.length} card(s). <button onclick="print()">Print</button></div><div class="g">
+    ${list.map(s => `<div class="c"><div class="h">${esc(CFG.SITE_NAME)}</div><div class="b">
+      ${s.photo ? `<img class="p" src="${esc(new URL(imgSrc(s.photo), base).href)}">` : `<div class="p">${esc((s.name || '?')[0])}</div>`}
+      <div><div class="n">${esc(s.name)}</div><div class="i">${esc(s.id)}</div><div class="m">${(s.batches || []).map(b => esc(batchLabel(b))).join('<br>')}${s.phone ? '<br>' + esc(s.phone) : ''}</div></div>
+      <div class="q">${qr(s.id)}</div></div></div>`).join('')}</div></body></html>`);
+  w.document.close();
+}
+
+/* ---------- batch lists (teachers see their own) ---------- */
+async function viewMyBatches() {
+  shell('mybatches', '<p class="muted">Loading…</p>');
+  let r;
+  try { await ensureLms(); r = await api('myBatches'); } catch (e) { return pageError(e); }
+  const cname = id => (r.courses.find(c => c.id === id) || {}).name || '';
+  $('#main').innerHTML = `<h1>${me.role === 'teacher' ? 'My batches' : 'Batch lists'}</h1>
+    <p class="lede">${me.role === 'teacher' ? 'The batches you teach and their students.' : 'Every batch and its current students.'} Attendance comes in Phase 3.</p>
+    ${r.batches.length ? r.batches.map(b => `<div class="card" style="margin-bottom:1rem">
+      <div class="row" style="margin-bottom:.5rem"><div><h2>${esc(cname(b.courseId))} › ${esc(b.name)}</h2>
+        <span class="muted">${esc(b.days)} · ${esc(b.time)}${b.room ? ' · Room ' + esc(b.room) : ''} · ${b.students.length} student${b.students.length === 1 ? '' : 's'}</span></div><span class="spacer"></span>
+        <button class="btn ghost sm" data-print="${esc(b.id)}">Print list</button></div>
+      <div class="tw"><table><thead><tr><th>#</th><th>ID</th><th>Name</th><th>Mobile</th><th>Guardian</th><th>School</th><th>Since</th></tr></thead><tbody>
+        ${b.students.map((s, i) => `<tr><td class="n">${i + 1}</td><td><code>${esc(s.id)}</code></td><td><a href="#/student/${encodeURIComponent(s.id)}">${esc(s.name)}</a></td><td>${esc(s.phone)}</td><td>${esc(s.guardianPhone)}</td><td>${esc(s.institution)}</td><td class="muted">${esc(s.since)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No students yet.</td></tr>'}
+      </tbody></table></div></div>`).join('') : `<p class="note">${me.role === 'teacher' ? 'You aren’t assigned to any batch yet. A manager adds you in Courses & batches › Edit batch › Teachers.' : 'No batches yet.'}</p>`}`;
+  document.querySelectorAll('[data-print]').forEach(btn => btn.onclick = () => {
+    const b = r.batches.find(x => x.id === btn.dataset.print);
+    const w = window.open('', '_blank'); if (!w) { toast('Allow pop-ups to print.'); return; }
+    w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(b.name)}</title><style>body{font:12pt 'Hind Siliguri',system-ui,sans-serif;margin:12mm}table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;padding:4px 6px;text-align:left}th{background:#eee}.w{width:28mm}</style>
+      <h2 style="margin:0">${esc(CFG.SITE_NAME)}: ${esc(cname(b.courseId))} › ${esc(b.name)}</h2><p>${esc(b.days)} · ${esc(b.time)} · Date: ________________</p>
+      <table><tr><th>#</th><th>ID</th><th>Name</th><th>Mobile</th><th class="w">Present</th></tr>${b.students.map((s, i) => `<tr><td>${i + 1}</td><td>${esc(s.id)}</td><td>${esc(s.name)}</td><td>${esc(s.phone)}</td><td></td></tr>`).join('')}</table><script>print()<\/script>`);
+    w.document.close();
+  });
 }
 
 boot();

@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>শিক্ষার্থী পোর্টাল</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Serif+Bengali:wght@700&display=swap" rel="stylesheet">
+<script src="config.js?v=1"></script>
+<style>
+:root {
+  --desk: #eceef1; --paper: #fff; --text: #1d2026; --muted: #5d6470; --line: #d9dce2;
+  --ink: #cc3d78; --ink-soft: #f7dbe7; --ink-text: #a3285c; --graphite: #2a2d33; --on-graphite: #fff;
+  --ok: #147a4b; --ok-soft: #dcf1e6; --bad: #c4321b; --bad-soft: #fbe2dc; --warn: #8a5a00; --warn-soft: #fff1d0; --focus: #2563eb;
+  --serif: "Noto Serif Bengali", serif; --sans: "Hind Siliguri", "Noto Sans Bengali", system-ui, sans-serif; color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --desk: #131519; --paper: #1d2025; --text: #eceef1; --muted: #a2a8b3; --line: #343841;
+    --ink: #f07aa8; --ink-soft: #3a2230; --ink-text: #f59cbf; --graphite: #e9eaed; --on-graphite: #16181c;
+    --ok: #4cc08a; --ok-soft: #17321f; --bad: #ff7a63; --bad-soft: #3a1d18; --warn: #f2cf6b; --warn-soft: #3a3010; --focus: #7aa7ff; color-scheme: dark;
+  }
+}
+:root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+*, *::before, *::after { box-sizing: inherit; }
+body { margin: 0; background: var(--desk); color: var(--text); font: 1.0625rem/1.65 var(--sans); }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; max-width: 44rem; margin: 0 auto; padding: 1rem 1rem .6rem; }
+.brand { font-family: var(--serif); font-weight: 700; color: var(--text); text-decoration: none; }
+.wrap { max-width: 44rem; margin: 0 auto; padding: 0 1rem 4rem; }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 1.3rem 1.2rem; }
+.stack > * + * { margin-top: 1rem; }
+h1, h2 { font-family: var(--serif); line-height: 1.3; margin: 0; }
+h1 { font-size: 1.5rem; } h2 { font-size: 1.15rem; }
+.lede { color: var(--muted); margin: .3rem 0 0; }
+label.f span { display: block; font-weight: 600; font-size: .95rem; margin-bottom: .25rem; }
+label.f small { display: block; color: var(--muted); font-size: .85rem; margin-top: .2rem; }
+input.t { width: 100%; padding: .65rem .8rem; border: 1.5px solid var(--line); border-radius: 6px; background: var(--paper); }
+input.t:focus { border-color: var(--ink); outline: none; box-shadow: 0 0 0 3px var(--ink-soft); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+@media (max-width: 460px) { .grid2 { grid-template-columns: 1fr; } }
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: .5rem 1.1rem; border-radius: 6px; cursor: pointer;
+  border: 1.5px solid var(--graphite); background: var(--graphite); color: var(--on-graphite); font-weight: 600; text-decoration: none; }
+.btn.ghost { background: transparent; color: var(--text); border-color: var(--line); }
+.btn.wide { width: 100%; }
+.link { background: none; border: 0; padding: 0; color: var(--ink-text); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font-weight: 600; }
+.alert { border-left: 4px solid var(--bad); background: var(--bad-soft); padding: .6rem .8rem; border-radius: 0 6px 6px 0; margin: 0; }
+.note { border-left: 4px solid var(--ink); background: var(--ink-soft); padding: .6rem .8rem; border-radius: 0 6px 6px 0; margin: 0; }
+.warn { border-left: 4px solid #e0a400; background: var(--warn-soft); padding: .8rem 1rem; border-radius: 0 6px 6px 0; margin: 0; }
+.hello { display: grid; grid-template-columns: auto 1fr; gap: 1rem; align-items: center; margin: .5rem 0 1.2rem; }
+.avatar { width: 4rem; height: 4rem; border-radius: 50%; object-fit: cover; background: var(--ink-soft); color: var(--ink-text); display: grid; place-items: center; font: 700 1.6rem var(--serif); }
+.sid { font: 600 .9rem ui-monospace, monospace; color: var(--ink-text); }
+.batch + .batch { margin-top: 1rem; }
+.batch .course { font-size: .85rem; font-weight: 600; color: var(--ink-text); }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: .2rem .9rem; margin: .7rem 0 0; font-size: .97rem; }
+.facts dt { color: var(--muted); } .facts dd { margin: 0; }
+details { margin-top: .8rem; border-top: 1px dashed var(--line); padding-top: .6rem; }
+summary { cursor: pointer; font-weight: 600; color: var(--ink-text); }
+.syl h3 { font-size: .98rem; margin: .7rem 0 .2rem; }
+.syl ol { margin: 0; padding-left: 1.3rem; }
+.ended { opacity: .7; }
+.pill { display: inline-block; font-size: .78rem; font-weight: 600; padding: 0 .55rem; border-radius: 999px; border: 1px solid currentColor; }
+.tabs { display: flex; gap: .4rem; margin-bottom: 1rem; }
+.tabs a { padding: .35rem .9rem; border-radius: 999px; border: 1.5px solid var(--line); text-decoration: none; color: var(--text); font-weight: 600; background: var(--paper); }
+.tabs a[aria-current="page"] { background: var(--graphite); color: var(--on-graphite); border-color: var(--graphite); }
+.foot { text-align: center; color: var(--muted); font-size: .9rem; margin-top: 2rem; }
+.busy { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: var(--ink); z-index: 50; }
+</style>
+</head>
+<body>
+<header class="top"><a class="brand" href="#/" id="brand"></a><span id="topRight"></span></header>
+<main class="wrap" id="app"></main>
+<div class="busy" id="busy" hidden></div>
+<script>
+(function () {
+'use strict';
+const CFG = Object.assign({ API_URL: '', SITE_NAME: 'কোচিং সেন্টার', SUPPORT_CONTACT: '', IMAGE_FOLDER: 'images/' }, window.PORTAL_CONFIG || {});
+const API_URL = String(CFG.API_URL || '').trim();
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const bn = v => String(v ?? '').replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
+const en = v => String(v ?? '').replace(/[০-৯]/g, d => '০১২৩৪৫৬৭৮৯'.indexOf(d));
+const store = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} }, del: k => { try { localStorage.removeItem(k); } catch (e) {} } };
+let stoken = store.get('omr_student_token') || '';
+let me = null;
+
+const MSG = {
+  NETWORK: 'সার্ভারের সাথে সংযোগ হয়নি। ইন্টারনেট দেখে আবার চেষ্টা করুন।',
+  CONFIG: 'Site setup is not finished: API_URL in config.js.',
+  UNKNOWN_ACTION: 'সার্ভার এখনো হালনাগাদ হয়নি। কিছুক্ষণ পর চেষ্টা করুন।',
+  LOGIN_FAILED: 'মোবাইল নম্বর বা পাসওয়ার্ড মেলেনি।',
+  LOGIN_LOCKED: 'অনেকবার ভুল চেষ্টা হয়েছে। এক ঘণ্টা পর আবার চেষ্টা করুন।',
+  STUDENT_BLOCKED: 'আপনার অ্যাকাউন্ট বন্ধ করা আছে। অফিসে যোগাযোগ করুন।',
+  STUDENT_SIGNED_OUT: 'আবার সাইন ইন করুন।',
+  INVALID_PHONE: 'সঠিক মোবাইল নম্বর লিখুন (যেমন 017XXXXXXXX)।',
+  INVALID_GUARDIAN_PHONE: 'অভিভাবকের সঠিক মোবাইল নম্বর লিখুন।',
+  PHONE_TAKEN: 'এই মোবাইল নম্বর দিয়ে আগেই নিবন্ধন করা আছে। সাইন ইন করুন।',
+  INVALID_NAME: 'নাম ২ থেকে ৬০ অক্ষরের মধ্যে লিখুন।',
+  WEAK_PASSWORD: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।',
+  BUSY: 'সার্ভারে চাপ বেশি। কয়েক সেকেন্ড পর চেষ্টা করুন।',
+};
+const msg = e => MSG[e.code] || 'কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।';
+
+async function api(action, data = {}) {
+  if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(API_URL) && !/^http:\/\/localhost/.test(API_URL)) throw { code: 'CONFIG' };
+  $('#busy').hidden = false;
+  try {
+    let res;
+    try { res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(Object.assign({ action, stoken }, data)) }); } catch (e) { throw { code: 'NETWORK' }; }
+    const j = await res.json().catch(() => ({ ok: false, error: 'NETWORK' }));
+    if (!j.ok) {
+      if (j.error === 'STUDENT_SIGNED_OUT' || j.error === 'STUDENT_BLOCKED') { stoken = ''; store.del('omr_student_token'); me = null; }
+      throw { code: j.error };
+    }
+    return j;
+  } finally { $('#busy').hidden = true; }
+}
+function imgSrc(ref) {
+  ref = String(ref || '').trim(); if (!ref) return '';
+  if (/^https:\/\//.test(ref)) return ref;
+  return /^[\w-][\w\-./]*\.(png|jpe?g|gif|webp)$/i.test(ref) && !ref.includes('..') ? (CFG.IMAGE_FOLDER || 'images/') + ref : '';
+}
+const errBox = e => e ? `<p class="alert" role="alert">${esc(e)}</p>` : '';
+function paint(html) {
+  $('#brand').textContent = CFG.SITE_NAME; document.title = CFG.SITE_NAME;
+  $('#topRight').innerHTML = me ? `<span class="sid">${esc(me.id)}</span>` : '';
+  $('#app').innerHTML = html; window.scrollTo(0, 0);
+  const f = $('#app [autofocus]'); if (f) f.focus();
+}
+function saveToken(t) { stoken = t; store.set('omr_student_token', t); }
+
+/* ---------- sign in / register ---------- */
+function viewLogin(error) {
+  paint(`<section class="card stack">
+    <div><h1>সাইন ইন</h1><p class="lede">কোচিংয়ে নিবন্ধিত মোবাইল নম্বর ও পাসওয়ার্ড দিন।</p></div>
+    ${errBox(error)}
+    <form id="f" class="stack">
+      <label class="f"><span>মোবাইল নম্বর</span><input class="t" name="phone" type="tel" inputmode="tel" autocomplete="username" required autofocus placeholder="017XXXXXXXX"></label>
+      <label class="f"><span>পাসওয়ার্ড</span><input class="t" name="pw" type="password" autocomplete="current-password" required></label>
+      <button class="btn wide">সাইন ইন</button>
+    </form>
+    <p class="lede">পাসওয়ার্ড ভুলে গেছেন? অফিসে এসে নতুন পাসওয়ার্ড নিন${CFG.SUPPORT_CONTACT ? ' অথবা যোগাযোগ করুন: ' + esc(CFG.SUPPORT_CONTACT) : ''}।</p>
+    <p style="margin:0">নতুন শিক্ষার্থী? <a class="link" href="#/register">নিবন্ধন করুন</a></p>
+  </section>`);
+  $('#f').onsubmit = async e => {
+    e.preventDefault();
+    try { const r = await api('stuLogin', { phone: en(e.target.phone.value), password: e.target.pw.value }); saveToken(r.stoken); me = r.me; location.hash = '#/'; route(); }
+    catch (x) { viewLogin(msg(x)); }
+  };
+}
+
+function viewRegister(error, keep = {}) {
+  const v = k => esc(keep[k] || '');
+  paint(`<section class="card stack">
+    <div><h1>নতুন নিবন্ধন</h1><p class="lede">নিবন্ধনের পর অফিস যাচাই করে অনুমোদন দিলে আপনার অ্যাকাউন্ট চালু হবে।</p></div>
+    ${errBox(error)}
+    <form id="f" class="stack">
+      <label class="f"><span>আপনার নাম</span><input class="t" name="name" value="${v('name')}" required autofocus autocomplete="name"></label>
+      <label class="f"><span>মোবাইল নম্বর</span><input class="t" name="phone" type="tel" inputmode="tel" value="${v('phone')}" required placeholder="017XXXXXXXX" autocomplete="tel"><small>এই নম্বর দিয়ে সাইন ইন করবেন।</small></label>
+      <div class="grid2">
+        <label class="f"><span>অভিভাবকের নাম</span><input class="t" name="gname" value="${v('guardianName')}"></label>
+        <label class="f"><span>অভিভাবকের মোবাইল</span><input class="t" name="gphone" type="tel" inputmode="tel" value="${v('guardianPhone')}"></label>
+      </div>
+      <div class="grid2">
+        <label class="f"><span>স্কুল / কলেজ</span><input class="t" name="inst" value="${v('institution')}"></label>
+        <label class="f"><span>শ্রেণি</span><input class="t" name="cls" value="${v('classLevel')}" placeholder="যেমন: এইচএসসি ১ম বর্ষ"></label>
+      </div>
+      <label class="f"><span>ঠিকানা</span><input class="t" name="addr" value="${v('address')}"></label>
+      <div class="grid2">
+        <label class="f"><span>পাসওয়ার্ড</span><input class="t" name="pw" type="password" autocomplete="new-password" minlength="6" required><small>কমপক্ষে ৬ অক্ষর</small></label>
+        <label class="f"><span>পাসওয়ার্ড আবার লিখুন</span><input class="t" name="pw2" type="password" autocomplete="new-password" required></label>
+      </div>
+      <button class="btn wide">নিবন্ধন করুন</button>
+    </form>
+    <p style="margin:0">আগে নিবন্ধন করেছেন? <a class="link" href="#/login">সাইন ইন করুন</a></p>
+  </section>`);
+  $('#f').onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target;
+    const d = { name: f.name.value.trim(), phone: en(f.phone.value), guardianName: f.gname.value.trim(), guardianPhone: en(f.gphone.value), institution: f.inst.value.trim(), classLevel: f.cls.value.trim(), address: f.addr.value.trim() };
+    if (f.pw.value !== f.pw2.value) return viewRegister('দুটি পাসওয়ার্ড মেলেনি।', d);
+    try { const r = await api('stuRegister', Object.assign({ password: f.pw.value }, d)); saveToken(r.stoken); me = r.me; location.hash = '#/'; route(); }
+    catch (x) { viewRegister(msg(x), d); }
+  };
+}
+
+/* ---------- home ---------- */
+function hello() {
+  const photo = me.photo ? `<img class="avatar" src="${esc(imgSrc(me.photo))}" alt="">` : `<div class="avatar" aria-hidden="true">${esc((me.name || '?')[0])}</div>`;
+  return `<div class="hello">${photo}<div><h1>${esc(me.name)}</h1><span class="sid">আইডি: ${esc(me.id)}</span></div></div>`;
+}
+const tabs = page => `<nav class="tabs"><a href="#/" ${page === 'home' ? 'aria-current="page"' : ''}>আমার ব্যাচ</a><a href="#/profile" ${page === 'profile' ? 'aria-current="page"' : ''}>প্রোফাইল</a></nav>`;
+
+function viewHome() {
+  if (me.status === 'PENDING') {
+    return paint(`${hello()}<div class="warn stack"><h2 style="font-family:var(--sans)">অনুমোদনের অপেক্ষায়</h2>
+      <p style="margin:0">আপনার নিবন্ধন পাওয়া গেছে। অফিসে এসে আপনার আইডি <b>${esc(me.id)}</b> বলুন। যাচাইয়ের পর অ্যাকাউন্ট চালু হবে এবং ব্যাচে ভর্তি করা হবে।</p></div>
+      <p class="foot"><button class="link" id="refresh">আবার দেখুন</button> · <button class="link" id="out">সাইন আউট</button></p>`), bindCommon();
+  }
+  const active = me.enrollments.filter(e => e.status === 'ACTIVE'), past = me.enrollments.filter(e => e.status !== 'ACTIVE');
+  const card = e => `<article class="card batch ${e.status === 'ACTIVE' ? '' : 'ended'}">
+    <div class="course">${esc(e.course.name)}</div>
+    <h2>${esc(e.batch.name)} ${e.status === 'ACTIVE' ? '' : '<span class="pill">শেষ</span>'}</h2>
+    <dl class="facts">
+      ${e.batch.days ? `<dt>দিন</dt><dd>${esc(e.batch.days)}</dd>` : ''}${e.batch.time ? `<dt>সময়</dt><dd>${esc(e.batch.time)}</dd>` : ''}
+      ${e.batch.room ? `<dt>রুম</dt><dd>${esc(e.batch.room)}</dd>` : ''}${e.batch.teachers.length ? `<dt>শিক্ষক</dt><dd>${e.batch.teachers.map(esc).join(', ')}</dd>` : ''}
+      ${e.batch.monthlyFee ? `<dt>মাসিক ফি</dt><dd>৳${bn(Number(e.batch.monthlyFee).toLocaleString('en-IN'))}</dd>` : ''}
+      <dt>ভর্তি</dt><dd>${bn(e.startDate)}${e.endDate ? ' থেকে ' + bn(e.endDate) : ''}</dd>
+    </dl>
+    ${e.syllabus.length ? `<details><summary>সিলেবাস</summary><div class="syl">${e.syllabus.map(s => `<h3>${esc(s.name)}</h3><ol>${s.chapters.map(c => `<li>${esc(c)}</li>`).join('')}</ol>`).join('')}</div></details>` : ''}
+  </article>`;
+  paint(`${hello()}${tabs('home')}
+    ${active.length ? active.map(card).join('') : '<p class="note">আপনি এখনো কোনো ব্যাচে ভর্তি হননি। ভর্তির জন্য অফিসে যোগাযোগ করুন।</p>'}
+    ${past.length ? `<h2 style="margin:1.6rem 0 .8rem;font-size:1rem;color:var(--muted)">আগের ব্যাচ</h2>${past.map(card).join('')}` : ''}
+    <p class="foot">ফি, উপস্থিতি ও পরীক্ষার ফলাফল শীঘ্রই এখানে দেখা যাবে। · <button class="link" id="out">সাইন আউট</button></p>`);
+  bindCommon();
+}
+
+function viewProfile(error, ok) {
+  paint(`${hello()}${tabs('profile')}
+    <section class="card stack">
+      <h2>প্রোফাইল</h2>
+      ${errBox(error)}${ok ? `<p class="note">${esc(ok)}</p>` : ''}
+      <form id="pf" class="stack">
+        <label class="f"><span>নাম</span><input class="t" name="name" value="${esc(me.name)}" required></label>
+        <label class="f"><span>মোবাইল নম্বর</span><input class="t" value="${esc(me.phone)}" readonly><small>মোবাইল নম্বর বদলাতে অফিসে যোগাযোগ করুন।</small></label>
+        <div class="grid2"><label class="f"><span>অভিভাবকের নাম</span><input class="t" name="gname" value="${esc(me.guardianName)}"></label>
+          <label class="f"><span>অভিভাবকের মোবাইল</span><input class="t" name="gphone" type="tel" value="${esc(me.guardianPhone)}"></label></div>
+        <div class="grid2"><label class="f"><span>স্কুল / কলেজ</span><input class="t" name="inst" value="${esc(me.institution)}"></label>
+          <label class="f"><span>শ্রেণি</span><input class="t" name="cls" value="${esc(me.classLevel)}"></label></div>
+        <label class="f"><span>ঠিকানা</span><input class="t" name="addr" value="${esc(me.address)}"></label>
+        <button class="btn">সংরক্ষণ করুন</button>
+      </form>
+    </section>
+    <section class="card stack" style="margin-top:1rem">
+      <h2>পাসওয়ার্ড বদলান</h2>
+      <form id="pw" class="stack">
+        <label class="f"><span>বর্তমান পাসওয়ার্ড</span><input class="t" name="old" type="password" autocomplete="current-password" required></label>
+        <div class="grid2"><label class="f"><span>নতুন পাসওয়ার্ড</span><input class="t" name="nw" type="password" autocomplete="new-password" minlength="6" required></label>
+          <label class="f"><span>আবার লিখুন</span><input class="t" name="nw2" type="password" autocomplete="new-password" required></label></div>
+        <button class="btn">পাসওয়ার্ড বদলান</button>
+      </form>
+    </section>
+    <p class="foot"><button class="link" id="out">সাইন আউট</button></p>`);
+  bindCommon();
+  $('#pf').onsubmit = async e => {
+    e.preventDefault(); const f = e.target;
+    try { me = (await api('stuUpdate', { name: f.name.value.trim(), guardianName: f.gname.value.trim(), guardianPhone: en(f.gphone.value), institution: f.inst.value.trim(), classLevel: f.cls.value.trim(), address: f.addr.value.trim() })).me; viewProfile('', 'প্রোফাইল সংরক্ষিত হয়েছে।'); }
+    catch (x) { if (!stoken) return viewLogin(msg(x)); viewProfile(msg(x)); }
+  };
+  $('#pw').onsubmit = async e => {
+    e.preventDefault(); const f = e.target;
+    if (f.nw.value !== f.nw2.value) return viewProfile('দুটি নতুন পাসওয়ার্ড মেলেনি।');
+    try { const r = await api('stuPassword', { oldPassword: f.old.value, newPassword: f.nw.value }); saveToken(r.stoken); viewProfile('', 'পাসওয়ার্ড বদলানো হয়েছে। অন্য ফোনে আবার সাইন ইন করতে হবে।'); }
+    catch (x) { if (!stoken) return viewLogin(msg(x)); viewProfile(x.code === 'LOGIN_FAILED' ? 'বর্তমান পাসওয়ার্ড মেলেনি।' : msg(x)); }
+  };
+}
+
+function bindCommon() {
+  if ($('#out')) $('#out').onclick = () => { stoken = ''; me = null; store.del('omr_student_token'); location.hash = '#/login'; route(); };
+  if ($('#refresh')) $('#refresh').onclick = () => { me = null; route(); };
+}
+
+async function route() {
+  const page = location.hash.replace(/^#\/?/, '');
+  if (!stoken) return page === 'register' ? viewRegister() : viewLogin();
+  if (!me) {
+    paint('<p style="color:var(--muted)">লোড হচ্ছে…</p>');
+    try { me = (await api('stuMe')).me; }
+    catch (x) { if (!stoken) return viewLogin(msg(x)); return paint(`<section class="card stack">${errBox(msg(x))}<button class="btn" id="again">আবার চেষ্টা করুন</button></section>`), ($('#again').onclick = route); }
+  }
+  if (page === 'profile' && me.status !== 'PENDING') return viewProfile();
+  viewHome();
+}
+window.addEventListener('hashchange', route);
+route();
+})();
+</script>
+</body>
+</html>
