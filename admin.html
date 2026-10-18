@@ -205,7 +205,7 @@ td a { color: var(--ink-text); font-weight: 600; }
 'use strict';
 const CFG = Object.assign({ API_URL: '', SITE_NAME: 'Portal' }, window.PORTAL_CONFIG || {});
 const API_URL = String(CFG.API_URL || '').trim();
-const ADMIN_VERSION = '3.3';
+const ADMIN_VERSION = '3.4';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = {
@@ -1435,13 +1435,13 @@ Object.assign(ERR, {
 let lms = null;
 async function ensureLms(fresh) { if (!lms || fresh) lms = await api('lmsCatalog'); return lms; }
 const staffName = email => ((lms && lms.staff.find(s => s.email === email)) || {}).name || email;
-const courseName = id => ((lms && lms.courses.find(c => c.id === id)) || {}).name || id;
+const courseName = id => { const c = lms && lms.courses.find(x => x.id === id); return c ? (c.classLevel ? c.classLevel + ' · ' : '') + c.name : id; };
 const batchLabel = id => { const b = lms && lms.batches.find(x => x.id === id); return b ? courseName(b.courseId) + ' › ' + b.name : id; };
 const money = n => '৳' + Number(n || 0).toLocaleString('en-IN');
 const statusPill = st => ({ ACTIVE: '<span class="pill ok">Active</span>', PENDING: '<span class="pill" style="color:#b7791f">Waiting approval</span>', BLOCKED: '<span class="pill" style="color:var(--bad)">Blocked</span>', ENDED: '<span class="pill off">Ended</span>', OPEN: '<span class="pill ok">Open for admission</span>', RUNNING: '<span class="pill super">Running</span>', CLOSED: '<span class="pill off">Closed</span>' }[st] || esc(st));
 
 /* ---------- courses & batches ---------- */
-let selCourse = null;
+let selCourse = null, selClass = '';
 async function viewCourses(courseId) {
   shell('courses', '<p class="muted">Loading…</p>');
   try { await ensureLms(true); } catch (e) { return pageError(e); }
@@ -1450,22 +1450,27 @@ async function viewCourses(courseId) {
 }
 function renderCourses() {
   const d = lms, cc = can('courses'), cs = can('syllabus');
-  if (!d.courses.some(c => c.id === selCourse)) selCourse = d.courses.length ? d.courses[0].id : null;
+  const shown = d.courses.filter(x => !selClass || x.classLevel === selClass);
+  if (!shown.some(c => c.id === selCourse)) selCourse = shown.length ? shown[0].id : null;
   const c = d.courses.find(x => x.id === selCourse);
+  const classOpts = [...new Set([...(d.classes || []), ...d.courses.map(x => x.classLevel).filter(Boolean)])];
   const batches = c ? d.batches.filter(b => b.courseId === c.id) : [];
   const subs = c ? d.subjects.filter(s => s.courseId === c.id) : [];
   $('#main').innerHTML = `
     <div class="row" style="margin-bottom:.2rem"><h1>Courses & batches</h1><span class="spacer"></span>${cc ? '<button class="btn" id="addCourse">+ Add course</button>' : ''}</div>
-    <p class="lede">A <b>course</b> (e.g. HSC Physics 2026) runs in one or more <b>batches</b>, each with its own days, time, room, teachers and monthly fee. The course's <b>subjects and chapters</b> are its syllabus.</p>
-    ${d.courses.length ? `<div class="titles" role="group" aria-label="Courses">${d.courses.map(x => `<button data-course="${esc(x.id)}" aria-pressed="${x.id === selCourse}">${esc(x.name)}${x.active ? '' : ' (inactive)'}</button>`).join('')}</div>` : '<p class="note">No courses yet.</p>'}
+    <p class="lede">Each <b>course</b> belongs to a <b>class</b> (e.g. HSC 28 · Physics full course) and runs in one or more <b>batches</b>, each with its own days, time, room, teachers and monthly fee. Use <b>+ Add students</b> on a batch to search and add students. The course's <b>subjects and chapters</b> are its syllabus.</p>
+    ${d.courses.length ? `<div class="row" style="margin-bottom:.7rem"><label class="row" style="gap:.4rem"><span class="muted">Class</span>
+        <select class="t" id="clsPick" style="max-width:10rem"><option value="">All classes</option>${classOpts.map(x => `<option ${x === selClass ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label></div>
+      ${shown.length ? `<div class="titles" role="group" aria-label="Courses">${shown.map(x => `<button data-course="${esc(x.id)}" aria-pressed="${x.id === selCourse}"><span style="opacity:.7;font-weight:600">${esc(x.classLevel || 'No class')}</span> · ${esc(x.name)}${x.active ? '' : ' (inactive)'}</button>`).join('')}</div>` : `<p class="note">No courses for ${esc(selClass)} yet.</p>`}`
+      : '<p class="note">No courses yet. Add one, and choose its class (e.g. HSC 28).</p>'}
     ${c ? `<div class="card stack">
-      <div class="row"><div><h2>${esc(c.name)}</h2><span class="muted">${esc(c.description) || 'No description'}</span></div><span class="spacer"></span>
+      <div class="row"><div><h2>${esc(c.name)} <span class="pill super" style="vertical-align:middle">${esc(c.classLevel || 'No class set')}</span></h2><span class="muted">${esc(c.description) || 'No description'}</span></div><span class="spacer"></span>
         ${cc ? '<button class="btn ghost sm" id="editCourse">Edit course</button><button class="btn sm" id="addBatch">+ Add batch</button>' : ''}</div>
       ${batches.length ? `<div class="tw"><table><thead><tr><th>Batch</th><th>Days & time</th><th>Room</th><th>Teachers</th><th>Students</th><th>Monthly fee</th><th>Status</th><th></th></tr></thead><tbody>
         ${batches.map(b => `<tr><td><b>${esc(b.name)}</b><br><span class="muted" style="font-size:.82rem">${esc(b.startDate || '')}${b.endDate ? ' → ' + esc(b.endDate) : ''}</span></td>
           <td>${esc(b.days)}<br><span class="muted">${esc(b.time)}</span></td><td>${esc(b.room)}</td><td>${b.teachers.map(t => esc(staffName(t))).join('<br>') || '<span class="muted">—</span>'}</td>
           <td class="n">${b.enrolled}${b.seats ? ' / ' + b.seats : ''}</td><td class="n">${money(b.monthlyFee)}${b.admissionFee ? `<br><span class="muted" style="font-size:.8rem">+ ${money(b.admissionFee)} admission</span>` : ''}</td>
-          <td>${statusPill(b.status)}</td><td style="text-align:right;white-space:nowrap"><a class="btn ghost sm" href="#/lstudents/batch:${encodeURIComponent(b.id)}">Students</a>${cc ? ` <button class="btn ghost sm" data-batch="${esc(b.id)}">Edit</button>` : ''}</td></tr>`).join('')}
+          <td>${statusPill(b.status)}</td><td style="text-align:right;white-space:nowrap">${can('enroll') && b.status !== 'CLOSED' ? `<button class="btn sm" data-addstu="${esc(b.id)}">+ Add students</button> ` : ''}<a class="btn ghost sm" href="#/lstudents/batch:${encodeURIComponent(b.id)}">Students</a>${cc ? ` <button class="btn ghost sm" data-batch="${esc(b.id)}">Edit</button>` : ''}</td></tr>`).join('')}
         </tbody></table></div>` : '<p class="muted">No batches yet.</p>'}
     </div>
     <div class="card stack" style="margin-top:1rem">
@@ -1477,6 +1482,8 @@ function renderCourses() {
         : '<p class="muted" style="margin:0">No subjects yet, e.g. "Physics 1st paper".</p>'}
     </div>` : ''}`;
   document.querySelectorAll('[data-course]').forEach(b => b.onclick = () => { selCourse = b.dataset.course; renderCourses(); });
+  if ($('#clsPick')) $('#clsPick').onchange = e => { selClass = e.target.value; renderCourses(); };
+  document.querySelectorAll('[data-addstu]').forEach(b => b.onclick = () => addStudentsDialog(d.batches.find(x => x.id === b.dataset.addstu)));
   if ($('#addCourse')) $('#addCourse').onclick = () => courseDialog(null);
   if ($('#editCourse')) $('#editCourse').onclick = () => courseDialog(c);
   if ($('#addBatch')) $('#addBatch').onclick = () => batchDialog(null);
@@ -1488,13 +1495,14 @@ function renderCourses() {
 }
 function courseDialog(c) {
   dialog(`<h2>${c ? 'Edit course' : 'Add a course'}</h2><div class="stack">
-    <label class="f"><span>Course name</span><input class="t" name="name" value="${esc(c ? c.name : '')}" required maxlength="100" placeholder="HSC Physics 2026"></label>
+    <div class="grid2"><label class="f"><span>Class</span><select class="t" name="cls" required><option value="">Choose…</option>${[...new Set([...(lms.classes || []), ...(c && c.classLevel ? [c.classLevel] : [])])].map(x => `<option ${(c ? c.classLevel : selClass) === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+      <label class="f"><span>Course name</span><input class="t" name="name" value="${esc(c ? c.name : '')}" required maxlength="100" placeholder="Physics full course"></label></div>
     <label class="f"><span>Short description (optional)</span><input class="t" name="desc" value="${esc(c ? c.description : '')}" maxlength="500"></label>
     <div class="grid2"><label class="f"><span>Order</span><input class="t" name="order" type="number" value="${c ? c.order : lms.courses.length + 1}"></label>
       <label class="f"><span>&nbsp;</span><span class="check"><input type="checkbox" name="active" ${!c || c.active ? 'checked' : ''}> Active</span></label></div>
   </div>${dlgButtons(c ? 'Save' : 'Add course', c ? 'Delete course' : '')}`, async (v, f) => {
     if (v === 'delete') { if (!confirm(`Delete "${c.name}"?`)) return false; lms = await api('courseDelete', { id: c.id }); }
-    else { lms = await api('courseSave', { id: c ? c.id : '', name: f.name.value, description: f.desc.value, order: f.order.value, active: f.active.checked }); if (!c) selCourse = lms.courses[lms.courses.length - 1].id; }
+    else { lms = await api('courseSave', { id: c ? c.id : '', classLevel: f.cls.value, name: f.name.value, description: f.desc.value, order: f.order.value, active: f.active.checked }); if (!c) { selCourse = lms.courses[lms.courses.length - 1].id; selClass = f.cls.value; } }
     toast('Saved'); renderCourses();
   });
 }
@@ -1538,6 +1546,52 @@ function chapterDialog(ch, subjectId) {
     if (v === 'delete') { if (!confirm(`Delete "${ch.name}"?`)) return false; lms = await api('chapterDelete', { id: ch.id }); }
     else lms = await api('chapterSave', { id: ch ? ch.id : '', subjectId, name: f.name.value, order: f.order.value });
     toast('Saved'); renderCourses();
+  });
+}
+
+/* ---------- add students to a batch by searching ---------- */
+function addStudentsDialog(b) {
+  const course = lms.courses.find(c => c.id === b.courseId) || {};
+  let added = 0;
+  dialog(`<h2>Add students to ${esc(course.name || '')} › ${esc(b.name)}</h2>
+    <div class="stack">
+      <div class="row"><input class="t" id="asq" placeholder="Search name, ID, mobile or school" style="flex:1;min-width:12rem" autocomplete="off">
+        ${course.classLevel ? `<label class="check"><input type="checkbox" id="asOnly" checked> Only ${esc(course.classLevel)}</label>` : ''}</div>
+      <p class="muted" style="margin:0;font-size:.88rem" id="asInfo">${b.enrolled}${b.seats ? ' of ' + b.seats + ' seats' : ''} taken. Students start from today; change the date on a student's page if needed.</p>
+      <div class="tw" id="asList" style="max-height:24rem;overflow:auto"><p class="muted">Type to search…</p></div>
+    </div>
+    <div class="actions"><button class="btn" value="cancel">Done</button></div>`, async () => {}, f => {
+    $('#dlg').classList.add('wide');
+    $('#dlg').addEventListener('close', () => { $('#dlg').classList.remove('wide'); if (added) { lms = null; viewCourses(); } }, { once: true });
+    let timer, seq = 0;
+    const search = async () => {
+      const q = $('#asq').value.trim(), only = $('#asOnly') && $('#asOnly').checked, my = ++seq;
+      if (!q && !only) { $('#asList').innerHTML = '<p class="muted">Type to search…</p>'; return; }
+      $('#asList').innerHTML = '<p class="muted">Searching…</p>';
+      let r;
+      try { r = await api('studentsList', { q, status: 'ACTIVE', classLevel: only ? course.classLevel : '', limit: 50 }); } catch (x) { $('#asList').innerHTML = `<p class="alert">${esc(errText(x))}</p>`; return; }
+      if (my !== seq) return;
+      $('#asList').innerHTML = `<table><thead><tr><th>ID</th><th>Name</th><th>Class</th><th>Mobile</th><th>School</th><th></th></tr></thead><tbody>
+        ${r.students.map(st => `<tr><td><code>${esc(st.id)}</code></td><td>${esc(st.name)}</td><td>${esc(st.classLevel)}</td><td>${esc(st.phone)}</td><td>${esc(st.institution)}</td>
+          <td style="text-align:right">${st.batches.includes(b.id) ? '<span class="pill ok">In this batch</span>' : `<button type="button" class="btn sm" data-add="${esc(st.id)}">Add</button>`}</td></tr>`).join('')
+          || `<tr><td colspan="6" class="muted">No active student found${only ? ' in ' + esc(course.classLevel) + '. Untick “Only ' + esc(course.classLevel) + '” to search all classes' : ''}. Students waiting for approval must be approved first.</td></tr>`}</tbody></table>
+        ${r.matched > r.students.length ? `<p class="muted">Showing ${r.students.length} of ${r.matched}. Type more to narrow down.</p>` : ''}`;
+      $('#asList').querySelectorAll('[data-add]').forEach(btn => btn.onclick = async () => {
+        const st = r.students.find(x => x.id === btn.dataset.add);
+        let over = false;
+        if (b.seats && b.enrolled >= b.seats) { if (!confirm(`${b.name} is full (${b.enrolled}/${b.seats}). Add anyway?`)) return; over = true; }
+        if (course.classLevel && st.classLevel !== course.classLevel && !confirm(`${st.name} is in ${st.classLevel || 'no class'}, but this course is for ${course.classLevel}. Add anyway?`)) return;
+        btn.disabled = true;
+        try {
+          await api('enrollSave', { studentId: st.id, batchId: b.id, overSeats: over });
+          b.enrolled++; added++; st.batches.push(b.id);
+          btn.outerHTML = '<span class="pill ok">Added ✓</span>';
+          $('#asInfo').textContent = `${b.enrolled}${b.seats ? ' of ' + b.seats + ' seats' : ''} taken · ${added} added now.`;
+        } catch (x) { btn.disabled = false; toast(errText(x)); }
+      });
+    };
+    $('#asq').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 350); });
+    if ($('#asOnly')) { $('#asOnly').onchange = search; search(); }
   });
 }
 
@@ -1610,7 +1664,12 @@ async function viewLStudent(id) {
         ${r.enrollments.map(e => `<tr><td>${esc(batchLabel(e.batchId))}</td><td>${esc(e.startDate)}</td><td>${esc(e.endDate) || '<span class="muted">ongoing</span>'}</td><td>${statusPill(e.status)}</td>
           <td style="text-align:right">${e.status === 'ACTIVE' && can('enroll') ? `<button class="btn ghost sm" data-end="${esc(e.id)}">End</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted" style="margin:0">Not in any batch yet.</p>'}
       ${can('enroll') && s.status === 'ACTIVE' ? `<form class="row" id="enf" style="border-top:1px dashed var(--line);padding-top:.8rem">
-        <select class="t" name="batch" required style="max-width:24rem"><option value="">Add to a batch…</option>${openBatches.map(b => `<option value="${esc(b.id)}">${esc(batchLabel(b.id))} · ${esc(b.days)} ${esc(b.time)} · ${b.enrolled}${b.seats ? '/' + b.seats : ''} students</option>`).join('')}</select>
+        <select class="t" name="batch" required style="max-width:28rem"><option value="">Add to a batch…</option>${(() => {
+          const opt = b => `<option value="${esc(b.id)}">${esc(batchLabel(b.id))} · ${esc(b.days)} ${esc(b.time)} · ${b.enrolled}${b.seats ? '/' + b.seats : ''} students</option>`;
+          const clsOf = b => ((lms.courses.find(c => c.id === b.courseId) || {}).classLevel || '');
+          const mine = openBatches.filter(b => clsOf(b) === s.classLevel), other = openBatches.filter(b => clsOf(b) !== s.classLevel);
+          return (mine.length ? `<optgroup label="${esc(s.classLevel || 'Their class')}">${mine.map(opt).join('')}</optgroup>` : '') + (other.length ? `<optgroup label="Other classes">${other.map(opt).join('')}</optgroup>` : '');
+        })()}</select>
         <label class="row" style="gap:.4rem"><span class="muted">from</span><input class="t" name="start" type="date" value="${new Date().toISOString().slice(0, 10)}" style="max-width:11rem"></label>
         <button class="btn">Enroll</button><span class="err" style="color:var(--bad)"></span></form>` : ''}
       ${s.status === 'PENDING' ? '<p class="note" style="margin:0">Approve the student before adding them to a batch.</p>' : ''}
