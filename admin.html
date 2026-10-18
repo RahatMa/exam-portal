@@ -188,6 +188,7 @@ td a { color: var(--ink-text); font-weight: 600; }
 .mchip.owe span { border-color: var(--bad); } .mchip.owe small, .mchip.part small { color: var(--bad); font-weight: 600; }
 .mchip.part span { border-color: #e0a400; border-style: dashed; }
 .mchip.future span { border-style: dashed; }
+.mchip.skip span { background: var(--desk); border-style: dotted; cursor: default; opacity: .75; } .mchip.skip small { font-style: italic; }
 .mchip input:checked + span { background: var(--graphite); color: var(--on-graphite); border-color: var(--graphite); }
 .mchip input:checked + span small { color: inherit; }
 .mchip input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
@@ -205,7 +206,7 @@ td a { color: var(--ink-text); font-weight: 600; }
 'use strict';
 const CFG = Object.assign({ API_URL: '', SITE_NAME: 'Portal' }, window.PORTAL_CONFIG || {});
 const API_URL = String(CFG.API_URL || '').trim();
-const ADMIN_VERSION = '3.4';
+const ADMIN_VERSION = '3.5';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = {
@@ -1430,7 +1431,8 @@ Object.assign(ERR, {
   INVALID_PHONE: 'Enter a valid mobile number like 017XXXXXXXX.', INVALID_GUARDIAN_PHONE: 'Enter a valid guardian mobile number.',
   PHONE_TAKEN: 'Another student already uses this mobile number.', STUDENT_NOT_FOUND: 'Student not found.',
   STUDENT_NOT_ACTIVE: 'Approve the student before enrolling them.', BATCH_NOT_FOUND: 'Choose a batch.', BATCH_CLOSED: 'That batch is closed.',
-  ALREADY_ENROLLED: 'Already enrolled in this batch.', INVALID_CLASS: 'Choose the class (e.g. SSC 27). Classes are listed in Settings.', ENROLLMENT_NOT_FOUND: 'Enrollment not found. Reload the page.',
+  ALREADY_ENROLLED: 'Already enrolled in this batch.', MONTH_HAS_PAYMENT: 'This month already has a payment, so it can’t be marked as not continuing. Cancel the receipt first if it was a mistake.',
+  MONTH_OUTSIDE: 'That month is outside the student’s time in this batch.', INVALID_CLASS: 'Choose the class (e.g. SSC 27). Classes are listed in Settings.', ENROLLMENT_NOT_FOUND: 'Enrollment not found. Reload the page.',
 });
 let lms = null;
 async function ensureLms(fresh) { if (!lms || fresh) lms = await api('lmsCatalog'); return lms; }
@@ -1464,13 +1466,13 @@ function renderCourses() {
       ${shown.length ? `<div class="titles" role="group" aria-label="Courses">${shown.map(x => `<button data-course="${esc(x.id)}" aria-pressed="${x.id === selCourse}"><span style="opacity:.7;font-weight:600">${esc(x.classLevel || 'No class')}</span> · ${esc(x.name)}${x.active ? '' : ' (inactive)'}</button>`).join('')}</div>` : `<p class="note">No courses for ${esc(selClass)} yet.</p>`}`
       : '<p class="note">No courses yet. Add one, and choose its class (e.g. HSC 28).</p>'}
     ${c ? `<div class="card stack">
-      <div class="row"><div><h2>${esc(c.name)} <span class="pill super" style="vertical-align:middle">${esc(c.classLevel || 'No class set')}</span></h2><span class="muted">${esc(c.description) || 'No description'}</span></div><span class="spacer"></span>
+      <div class="row"><div><h2>${esc(c.name)} <span class="pill super" style="vertical-align:middle">${esc(c.classLevel || 'No class set')}</span> <span class="pill off" style="vertical-align:middle">${c.paymentType === 'ONE_TIME' ? 'One-time fee' : 'Monthly fee'}</span></h2><span class="muted">${esc(c.description) || 'No description'}</span></div><span class="spacer"></span>
         ${cc ? '<button class="btn ghost sm" id="editCourse">Edit course</button><button class="btn sm" id="addBatch">+ Add batch</button>' : ''}</div>
-      ${batches.length ? `<div class="tw"><table><thead><tr><th>Batch</th><th>Days & time</th><th>Room</th><th>Teachers</th><th>Students</th><th>Monthly fee</th><th>Status</th><th></th></tr></thead><tbody>
+      ${batches.length ? `<div class="tw"><table><thead><tr><th>Batch</th><th>Days & time</th><th>Room</th><th>Teachers</th><th>Students</th><th>${c.paymentType === 'ONE_TIME' ? 'Course fee' : 'Monthly fee'}</th><th>Status</th><th></th></tr></thead><tbody>
         ${batches.map(b => `<tr><td><b>${esc(b.name)}</b><br><span class="muted" style="font-size:.82rem">${esc(b.startDate || '')}${b.endDate ? ' → ' + esc(b.endDate) : ''}</span></td>
           <td>${esc(b.days)}<br><span class="muted">${esc(b.time)}</span></td><td>${esc(b.room)}</td><td>${b.teachers.map(t => esc(staffName(t))).join('<br>') || '<span class="muted">—</span>'}</td>
-          <td class="n">${b.enrolled}${b.seats ? ' / ' + b.seats : ''}</td><td class="n">${money(b.monthlyFee)}${b.admissionFee ? `<br><span class="muted" style="font-size:.8rem">+ ${money(b.admissionFee)} admission</span>` : ''}</td>
-          <td>${statusPill(b.status)}</td><td style="text-align:right;white-space:nowrap">${can('enroll') && b.status !== 'CLOSED' ? `<button class="btn sm" data-addstu="${esc(b.id)}">+ Add students</button> ` : ''}<a class="btn ghost sm" href="#/lstudents/batch:${encodeURIComponent(b.id)}">Students</a>${cc ? ` <button class="btn ghost sm" data-batch="${esc(b.id)}">Edit</button>` : ''}</td></tr>`).join('')}
+          <td class="n">${b.enrolled}${b.seats ? ' / ' + b.seats : ''}</td><td class="n">${money(b.monthlyFee)}<span class="muted" style="font-size:.8rem">${c.paymentType === 'ONE_TIME' ? ' once' : '/month'}</span>${b.admissionFee ? `<br><span class="muted" style="font-size:.8rem">+ ${money(b.admissionFee)} admission</span>` : ''}</td>
+          <td>${statusPill(b.status)}</td><td style="text-align:right;white-space:nowrap">${can('enroll') && b.status !== 'CLOSED' ? `<button class="btn sm" data-addstu="${esc(b.id)}">+ Add students</button> ` : ''}${can('enroll') && c.paymentType !== 'ONE_TIME' ? `<button class="btn ghost sm" data-register="${esc(b.id)}">Month register</button> ` : ''}<a class="btn ghost sm" href="#/lstudents/batch:${encodeURIComponent(b.id)}">Students</a>${cc ? ` <button class="btn ghost sm" data-batch="${esc(b.id)}">Edit</button>` : ''}</td></tr>`).join('')}
         </tbody></table></div>` : '<p class="muted">No batches yet.</p>'}
     </div>
     <div class="card stack" style="margin-top:1rem">
@@ -1484,6 +1486,7 @@ function renderCourses() {
   document.querySelectorAll('[data-course]').forEach(b => b.onclick = () => { selCourse = b.dataset.course; renderCourses(); });
   if ($('#clsPick')) $('#clsPick').onchange = e => { selClass = e.target.value; renderCourses(); };
   document.querySelectorAll('[data-addstu]').forEach(b => b.onclick = () => addStudentsDialog(d.batches.find(x => x.id === b.dataset.addstu)));
+  document.querySelectorAll('[data-register]').forEach(b => b.onclick = () => monthRegister(d.batches.find(x => x.id === b.dataset.register)));
   if ($('#addCourse')) $('#addCourse').onclick = () => courseDialog(null);
   if ($('#editCourse')) $('#editCourse').onclick = () => courseDialog(c);
   if ($('#addBatch')) $('#addBatch').onclick = () => batchDialog(null);
@@ -1497,12 +1500,15 @@ function courseDialog(c) {
   dialog(`<h2>${c ? 'Edit course' : 'Add a course'}</h2><div class="stack">
     <div class="grid2"><label class="f"><span>Class</span><select class="t" name="cls" required><option value="">Choose…</option>${[...new Set([...(lms.classes || []), ...(c && c.classLevel ? [c.classLevel] : [])])].map(x => `<option ${(c ? c.classLevel : selClass) === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
       <label class="f"><span>Course name</span><input class="t" name="name" value="${esc(c ? c.name : '')}" required maxlength="100" placeholder="Physics full course"></label></div>
+    <fieldset style="border:1px solid var(--line);border-radius:6px;padding:.6rem .8rem"><legend style="font-weight:600;font-size:.88rem">How is the fee paid?</legend>
+      <label class="check"><input type="radio" name="ptype" value="MONTHLY" ${!c || c.paymentType !== 'ONE_TIME' ? 'checked' : ''}> Monthly: the batch fee is charged every month the student continues</label>
+      <label class="check"><input type="radio" name="ptype" value="ONE_TIME" ${c && c.paymentType === 'ONE_TIME' ? 'checked' : ''}> One time: the batch fee is the whole course fee, paid once</label></fieldset>
     <label class="f"><span>Short description (optional)</span><input class="t" name="desc" value="${esc(c ? c.description : '')}" maxlength="500"></label>
     <div class="grid2"><label class="f"><span>Order</span><input class="t" name="order" type="number" value="${c ? c.order : lms.courses.length + 1}"></label>
       <label class="f"><span>&nbsp;</span><span class="check"><input type="checkbox" name="active" ${!c || c.active ? 'checked' : ''}> Active</span></label></div>
   </div>${dlgButtons(c ? 'Save' : 'Add course', c ? 'Delete course' : '')}`, async (v, f) => {
     if (v === 'delete') { if (!confirm(`Delete "${c.name}"?`)) return false; lms = await api('courseDelete', { id: c.id }); }
-    else { lms = await api('courseSave', { id: c ? c.id : '', classLevel: f.cls.value, name: f.name.value, description: f.desc.value, order: f.order.value, active: f.active.checked }); if (!c) { selCourse = lms.courses[lms.courses.length - 1].id; selClass = f.cls.value; } }
+    else { lms = await api('courseSave', { id: c ? c.id : '', classLevel: f.cls.value, paymentType: (f.querySelector('[name=ptype]:checked') || {}).value, name: f.name.value, description: f.desc.value, order: f.order.value, active: f.active.checked }); if (!c) { selCourse = lms.courses[lms.courses.length - 1].id; selClass = f.cls.value; } }
     toast('Saved'); renderCourses();
   });
 }
@@ -1515,7 +1521,7 @@ function batchDialog(b) {
       <label class="f"><span>Time</span><input class="t" name="time" value="${esc(b ? b.time : '')}" placeholder="4:00–5:30 PM"></label></div>
     <div class="grid2"><label class="f"><span>Room</span><input class="t" name="room" value="${esc(b ? b.room : '')}"></label>
       <label class="f"><span>Seats (0 = no limit)</span><input class="t" name="seats" type="number" min="0" value="${b ? b.seats : 0}"></label></div>
-    <div class="grid2"><label class="f"><span>Monthly fee (৳)</span><input class="t" name="fee" type="number" min="0" value="${b ? b.monthlyFee : 0}"></label>
+    <div class="grid2"><label class="f"><span>${(lms.courses.find(x => x.id === (b ? b.courseId : selCourse)) || {}).paymentType === 'ONE_TIME' ? 'Course fee, paid once (৳)' : 'Monthly fee (৳)'}</span><input class="t" name="fee" type="number" min="0" value="${b ? b.monthlyFee : 0}"></label>
       <label class="f"><span>Admission fee (৳)</span><input class="t" name="adm" type="number" min="0" value="${b ? b.admissionFee : 0}"></label></div>
     <div class="grid2"><label class="f"><span>Starts</span><input class="t" name="sd" type="date" value="${esc(b ? b.startDate : '')}"></label>
       <label class="f"><span>Ends (optional)</span><input class="t" name="ed" type="date" value="${esc(b ? b.endDate : '')}"></label></div>
@@ -1546,6 +1552,63 @@ function chapterDialog(ch, subjectId) {
     if (v === 'delete') { if (!confirm(`Delete "${ch.name}"?`)) return false; lms = await api('chapterDelete', { id: ch.id }); }
     else lms = await api('chapterSave', { id: ch ? ch.id : '', subjectId, name: f.name.value, order: f.order.value });
     toast('Saved'); renderCourses();
+  });
+}
+
+/* ---------- months a student continues (monthly courses) ---------- */
+// Ticked = continuing (fee charged). Untick a month the student won't attend: no fee for it.
+// New months are ticked automatically, so students continue unless someone unticks.
+function monthsDialog(ac, after) {
+  if (!ac) return;
+  let changed = false;
+  dialog(`<h2>Months: ${esc(ac.courseName)} › ${esc(ac.batchName)}</h2>
+    <p class="muted" style="margin-top:0">Ticked months are charged. Untick a month the student won't continue; every new month is ticked automatically. Paid months can't be unticked.</p>
+    <div class="tw"><table><thead><tr><th>Continuing</th><th>Month</th><th>Fee</th><th>Paid</th><th>Due</th></tr></thead><tbody>
+      ${ac.months.map(m => `<tr><td><label class="check"><input type="checkbox" data-m="${esc(m.month)}" ${m.skipped ? '' : 'checked'} ${m.paid > 0 ? 'disabled title="Already paid"' : ''}> <span class="mlbl ${m.skipped ? 'muted' : ''}">${m.skipped ? 'Not continuing' : 'Yes'}</span></label></td>
+        <td><b>${esc(monthName(m.month))}</b>${m.future ? ' <span class="muted" style="font-size:.8rem">(ahead)</span>' : ''}</td><td class="n">${money(m.fee)}</td><td class="n">${money(m.paid)}</td><td class="n">${m.due ? `<b style="color:var(--bad)">${money(m.due)}</b>` : '—'}</td></tr>`).join('')}
+    </tbody></table></div><p class="alert err" hidden></p>
+    <div class="actions"><button class="btn" value="cancel">Done</button></div>`, async () => {}, f => {
+    $('#dlg').addEventListener('close', () => { if (changed && after) after(); }, { once: true });
+    f.querySelectorAll('[data-m]').forEach(cb => cb.onchange = async () => {
+      const box = f.querySelector('.err'); box.hidden = true; cb.disabled = true;
+      try {
+        await api('enrollMonth', { enrollmentId: ac.enrollmentId, month: cb.dataset.m, skip: !cb.checked });
+        changed = true;
+        const lbl = cb.parentElement.querySelector('.mlbl'); lbl.textContent = cb.checked ? 'Yes' : 'Not continuing'; lbl.classList.toggle('muted', !cb.checked);
+        toast(cb.checked ? 'Continuing' : 'Marked as not continuing');
+      } catch (x) { cb.checked = !cb.checked; box.hidden = false; box.textContent = errText(x); }
+      cb.disabled = false;
+    });
+  });
+}
+
+// One month of a batch at once: untick students who won't continue that month.
+function monthRegister(b) {
+  const course = lms.courses.find(c => c.id === b.courseId) || {};
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  dialog(`<h2>Month register: ${esc(course.name || '')} › ${esc(b.name)}</h2>
+    <div class="row" style="margin-bottom:.6rem"><label class="row" style="gap:.4rem"><span class="muted">Month</span><input class="t" type="month" id="mrM" value="${thisMonth}" style="max-width:11rem"></label>
+      <span class="muted" style="font-size:.88rem">Everyone continues unless unticked. Unticked = no fee that month.</span></div>
+    <div class="tw" id="mrList" style="max-height:26rem;overflow:auto"><p class="muted">Loading…</p></div><p class="alert err" hidden></p>
+    <div class="actions"><button class="btn" value="cancel">Done</button></div>`, async () => {}, f => {
+    $('#dlg').classList.add('wide');
+    $('#dlg').addEventListener('close', () => $('#dlg').classList.remove('wide'), { once: true });
+    const load = async () => {
+      let r;
+      try { r = await api('batchMonth', { batchId: b.id, month: $('#mrM').value }); } catch (x) { $('#mrList').innerHTML = `<p class="alert">${esc(errText(x))}</p>`; return; }
+      const cont = r.rows.filter(x => !x.skipped).length;
+      $('#mrList').innerHTML = `<p style="margin:.2rem 0 .5rem"><b>${cont}</b> of ${r.rows.length} continuing in ${esc(monthName(r.month))}.</p>
+        <table><thead><tr><th>Continuing</th><th>ID</th><th>Name</th><th>Fee</th><th>Paid</th><th>Due</th><th></th></tr></thead><tbody>
+        ${r.rows.map(x => `<tr><td><input type="checkbox" data-e="${esc(x.enrollmentId)}" ${x.skipped ? '' : 'checked'} ${x.paid > 0 ? 'disabled title="Already paid"' : ''} aria-label="${esc(x.name)} continues"></td>
+          <td><code>${esc(x.studentId)}</code></td><td>${esc(x.name)}${x.status === 'ENDED' ? ' <span class="pill off">Left</span>' : ''}</td><td class="n">${money(x.fee)}</td><td class="n">${money(x.paid)}</td>
+          <td class="n">${x.due ? `<b style="color:var(--bad)">${money(x.due)}</b>` : '—'}</td><td>${can('fees.collect') ? `<a class="link" href="#/collect/${encodeURIComponent(x.studentId)}">Fees</a>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No students in this batch that month.</td></tr>'}</tbody></table>`;
+      $('#mrList').querySelectorAll('[data-e]').forEach(cb => cb.onchange = async () => {
+        const box = f.querySelector('.err'); box.hidden = true; cb.disabled = true;
+        try { await api('enrollMonth', { enrollmentId: cb.dataset.e, month: r.month, skip: !cb.checked }); load(); }
+        catch (x) { cb.checked = !cb.checked; cb.disabled = false; box.hidden = false; box.textContent = errText(x); }
+      });
+    };
+    $('#mrM').onchange = load; load();
   });
 }
 
@@ -1662,7 +1725,7 @@ async function viewLStudent(id) {
       <h2>Batches</h2>
       ${r.enrollments.length ? `<div class="tw"><table><thead><tr><th>Batch</th><th>From</th><th>To</th><th>Status</th><th></th></tr></thead><tbody>
         ${r.enrollments.map(e => `<tr><td>${esc(batchLabel(e.batchId))}</td><td>${esc(e.startDate)}</td><td>${esc(e.endDate) || '<span class="muted">ongoing</span>'}</td><td>${statusPill(e.status)}</td>
-          <td style="text-align:right">${e.status === 'ACTIVE' && can('enroll') ? `<button class="btn ghost sm" data-end="${esc(e.id)}">End</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted" style="margin:0">Not in any batch yet.</p>'}
+          <td style="text-align:right;white-space:nowrap">${e.status === 'ACTIVE' && can('enroll') && (lms.courses.find(c => c.id === (lms.batches.find(b => b.id === e.batchId) || {}).courseId) || {}).paymentType !== 'ONE_TIME' ? `<button class="btn ghost sm" data-mon="${esc(e.id)}">Months…</button> ` : ''}${e.status === 'ACTIVE' && can('enroll') ? `<button class="btn ghost sm" data-end="${esc(e.id)}">End</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted" style="margin:0">Not in any batch yet.</p>'}
       ${can('enroll') && s.status === 'ACTIVE' ? `<form class="row" id="enf" style="border-top:1px dashed var(--line);padding-top:.8rem">
         <select class="t" name="batch" required style="max-width:28rem"><option value="">Add to a batch…</option>${(() => {
           const opt = b => `<option value="${esc(b.id)}">${esc(batchLabel(b.id))} · ${esc(b.days)} ${esc(b.time)} · ${b.enrolled}${b.seats ? '/' + b.seats : ''} students</option>`;
@@ -1688,6 +1751,10 @@ async function viewLStudent(id) {
     if (to === 'BLOCKED' && !confirm(`Block ${s.name}? They can no longer sign in.`)) return;
     try { await api('studentStatus', { studentId: s.id, status: to }); toast('Saved'); reload(); } catch (e) { toast(errText(e)); }
   };
+  document.querySelectorAll('[data-mon]').forEach(b => b.onclick = async () => {
+    try { const fa = await api('feeAccount', { studentId: s.id }); monthsDialog(fa.accounts.find(x => x.enrollmentId === b.dataset.mon), reload); }
+    catch (x) { toast(errText(x)); }
+  });
   document.querySelectorAll('[data-end]').forEach(b => b.onclick = async () => {
     const end = prompt('Last day in this batch (YYYY-MM-DD):', new Date().toISOString().slice(0, 10));
     if (!end) return;
@@ -1879,6 +1946,7 @@ async function viewCollect(id) {
   try { a = await api('feeAccount', { studentId: id }); } catch (e) { return pageError(e); }
   const s = a.student, tk = n => money(n);
   const chip = m => {
+    if (m.skipped && !m.paid) return `<label class="mchip skip" title="Not continuing this month: no fee"><input type="checkbox" disabled><span><b>${esc(monthName(m.month))}</b><small>Not continuing</small></span></label>`;
     const cls = m.due === 0 ? 'paid' : m.paid > 0 ? 'part' : m.owing ? 'owe' : 'future';
     const label = m.due === 0 ? 'Paid' : m.paid > 0 ? 'Due ' + tk(m.due) : m.owing ? 'Due' : 'Advance';
     return `<label class="mchip ${cls}" title="${esc(monthName(m.month))}: fee ${tk(m.fee)}, paid ${tk(m.paid)}">
@@ -1896,8 +1964,9 @@ async function viewCollect(id) {
     <form id="cf" class="stack" style="margin-top:1rem">
       ${a.accounts.length ? a.accounts.map(ac => `<div class="card">
         <div class="row" style="margin-bottom:.6rem"><div><h2>${esc(ac.courseName)} › ${esc(ac.batchName)}</h2>
-          <span class="muted">Monthly ${tk(ac.monthlyFee)}${ac.monthlyDiscount ? ` − ${tk(ac.monthlyDiscount)} discount${ac.discountNote ? ' (' + esc(ac.discountNote) + ')' : ''} = <b>${tk(Math.max(0, ac.monthlyFee - ac.monthlyDiscount))}</b>` : ''} · since ${esc(ac.startDate)}${ac.status === 'ENDED' ? ' · left ' + esc(ac.endDate) : ''}</span></div>
-          <span class="spacer"></span>${can('fees.discount') ? `<button type="button" class="btn ghost sm" data-disc="${esc(ac.enrollmentId)}" data-cur="${ac.monthlyDiscount}" data-note="${esc(ac.discountNote)}">Monthly discount</button>` : ''}</div>
+          <span class="muted">${ac.paymentType === 'ONE_TIME' ? 'Course fee (one time)' : 'Monthly'} ${tk(ac.monthlyFee)}${ac.monthlyDiscount ? ` − ${tk(ac.monthlyDiscount)} discount${ac.discountNote ? ' (' + esc(ac.discountNote) + ')' : ''} = <b>${tk(Math.max(0, ac.monthlyFee - ac.monthlyDiscount))}</b>` : ''} · since ${esc(ac.startDate)}${ac.status === 'ENDED' ? ' · left ' + esc(ac.endDate) : ''}</span></div>
+          <span class="spacer"></span>${can('enroll') && ac.paymentType !== 'ONE_TIME' ? `<button type="button" class="btn ghost sm" data-months="${esc(ac.enrollmentId)}">Months…</button> ` : ''}${can('fees.discount') ? `<button type="button" class="btn ghost sm" data-disc=""${esc(ac.enrollmentId)}" data-cur="${ac.monthlyDiscount}" data-note="${esc(ac.discountNote)}" data-once="${ac.paymentType === 'ONE_TIME' ? 1 : ''}">${ac.paymentType === 'ONE_TIME' ? 'Discount' : 'Monthly discount'}</button>` : ''}</div>
+        ${ac.courseFee ? `<div class="mchips" style="margin-bottom:.5rem"><label class="mchip ${ac.courseFee.due ? (ac.courseFee.paid ? 'part' : 'owe') : 'paid'}"><input type="checkbox" data-key="${esc(ac.courseFee.key)}" data-due="${ac.courseFee.due}" ${ac.courseFee.due ? '' : 'disabled'}><span><b>Course fee</b><small>${ac.courseFee.due ? 'Due ' + tk(ac.courseFee.due) : 'Paid'}</small></span></label></div>` : ''}
         ${ac.admission ? `<div class="mchips" style="margin-bottom:.5rem"><label class="mchip ${ac.admission.due ? (ac.admission.paid ? 'part' : 'owe') : 'paid'}"><input type="checkbox" data-key="${esc(ac.admission.key)}" data-due="${ac.admission.due}" ${ac.admission.due ? '' : 'disabled'}><span><b>Admission</b><small>${ac.admission.due ? 'Due ' + tk(ac.admission.due) : 'Paid'}</small></span></label></div>` : ''}
         <div class="mchips">${ac.months.map(chip).join('')}</div>
       </div>`).join('') : '<p class="note">Not enrolled in any batch, so there are no monthly fees. You can still collect other fees below.</p>'}
@@ -1970,8 +2039,9 @@ async function viewCollect(id) {
     if (!reason) return;
     try { await api('receiptCancel', { no: b.dataset.cancel, reason }); toast('Receipt cancelled'); viewCollect(s.id); } catch (x) { toast(errText(x)); }
   });
+  document.querySelectorAll('[data-months]').forEach(b => b.onclick = () => monthsDialog(a.accounts.find(x => x.enrollmentId === b.dataset.months), () => viewCollect(s.id)));
   document.querySelectorAll('[data-disc]').forEach(b => b.onclick = async () => {
-    const v = prompt('Monthly discount for this student in this batch (৳ per month, 0 for none):', b.dataset.cur || '0');
+    const v = prompt(b.dataset.once ? 'Discount on the course fee for this student (৳, 0 for none):' : 'Monthly discount for this student in this batch (৳ per month, 0 for none):', b.dataset.cur || '0');
     if (v === null) return;
     const note = prompt('Reason (e.g. sibling, merit):', b.dataset.note || '');
     try { await api('enrollDiscount', { enrollmentId: b.dataset.disc, monthlyDiscount: Number(v), note: note || '' }); toast('Discount saved'); viewCollect(s.id); } catch (x) { toast(errText(x)); }
