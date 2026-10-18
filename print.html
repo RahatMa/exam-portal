@@ -21,7 +21,7 @@
 :root { --text: #1d2026; --muted: #5d6470; --line: #d9dce2; --desk: #eceef1; --ink: #cc3d78; box-sizing: border-box; }
 *, *::before, *::after { box-sizing: inherit; }
 body { margin: 0; background: var(--desk); color: var(--text); font: 16px/1.55 system-ui, sans-serif; }
-.tool { max-width: 62rem; margin: 0 auto; padding: 1.5rem 1rem 1rem; }
+.tool { max-width: 78rem; margin: 0 auto; padding: 1.2rem clamp(1rem, 3vw, 2rem) 1rem; }
 .tool h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
 .tool h2 { font-size: 1.05rem; margin: 0 0 .6rem; }
 .tool p { margin: .25rem 0 1rem; color: var(--muted); }
@@ -94,17 +94,49 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .tool { display: none !important; }
   #doc { width: auto; }
 }
+
+/* ---------- goal.physics admin look (same as admin.html) ---------- */
+:root { --desk: #f3f6fb; --paper: #fff; --text: #0B1F4B; --muted: #5a6888; --line: #d9e1ee; --ink: #1F6FEB; --ink-soft: #e6effd; --ink-text: #1554c0; --graphite: #0B1F4B; color-scheme: light; }
+body { background: var(--desk); color: var(--text); font-family: "Hind Siliguri", system-ui, -apple-system, "Segoe UI", sans-serif; }
+.topbar { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
+.topbar .in { max-width: 78rem; margin: 0 auto; padding: .55rem clamp(1rem, 3vw, 2rem) 0; display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1.2rem; }
+.topbar .logo { display: flex; align-items: center; gap: .55rem; text-decoration: none; padding-bottom: .5rem; }
+.topbar .logo img { height: 2.1rem; display: block; }
+.topbar .logo small { font-size: .7rem; font-weight: 700; letter-spacing: .12em; color: var(--ink); border-left: 1px solid var(--line); padding-left: .55rem; }
+.topbar .back { margin-left: auto; padding-bottom: .5rem; color: var(--ink-text); font-weight: 600; font-size: .9rem; }
+.maintabs { display: flex; gap: .2rem; flex-basis: 100%; overflow-x: auto; }
+.maintabs a { padding: .55rem .9rem .6rem; text-decoration: none; color: var(--muted); font-weight: 600; border-bottom: 3px solid transparent; white-space: nowrap; }
+.maintabs a:hover { color: var(--text); }
+.maintabs a[aria-current="page"] { color: var(--ink-text); border-bottom-color: var(--ink); }
+.subtabs { max-width: 78rem; margin: 0 auto; padding: .9rem clamp(1rem, 3vw, 2rem) 0; display: flex; gap: .4rem; flex-wrap: wrap; }
+.subtabs a { padding: .3rem .85rem; border-radius: 999px; text-decoration: none; color: var(--text); font-weight: 600; font-size: .92rem; border: 1px solid var(--line); background: #fff; }
+.subtabs a:hover { border-color: var(--ink); }
+.subtabs a[aria-current="page"] { background: var(--graphite); border-color: var(--graphite); color: #fff; }
+.panel { background: #fff !important; border: 1px solid var(--line) !important; border-radius: 10px !important; }
+input:not([type=checkbox]):not([type=radio]), select { border: 1.5px solid var(--line) !important; border-radius: 6px !important; color: var(--text); background: #fff; }
+input:focus, select:focus { border-color: var(--ink) !important; outline: none; box-shadow: 0 0 0 3px var(--ink-soft); }
+button { border-radius: 6px !important; border-color: var(--graphite) !important; background: var(--graphite) !important; color: #fff !important; }
+button.ghost { background: #fff !important; color: var(--text) !important; border-color: var(--line) !important; }
+button:disabled { opacity: .45; }
+a { color: var(--ink-text); }
+h1 { color: var(--text); }
+@media print { body { background: #fff !important; } .no-print { display: none !important; } }
+@media print { .no-print { display: none !important; } }
 </style>
 </head>
 <body>
-
+<header class="topbar no-print"><div class="in">
+  <a class="logo" href="admin.html#/home"><img src="logo.png" alt="goal.physics" onerror="this.remove()"><small>ADMIN</small></a>
+  <a class="back" href="admin.html#/home">← Admin home</a>
+  <nav class="maintabs" aria-label="Sections"><a href="admin.html#/home">Home</a><a href="admin.html#/courses">Coaching centre</a><a href="admin.html#/fees">Fees</a><a href="admin.html#/books" aria-current="page">Books & OMR</a><a href="admin.html#/settings">System</a></nav>
+</div></header>
+<nav class="subtabs no-print" aria-label="Books & OMR"><a href="admin.html#/books">Books & exams</a><a href="admin.html#/questions">Questions</a><a href="admin.html#/results">Results</a><a href="print.html" aria-current="page">Print papers</a><a href="omr-sheet.html">OMR sheet maker</a><a href="admin.html#/bookids">Book IDs & QR</a></nav>
 <div class="tool">
   <h1>Print question papers</h1>
-  <p><a href="admin.html">← Admin portal</a></p>
   <p>Makes print-ready question papers from your exams: the questions, an answer key, the detailed solutions, and the OMR sheet. Opens directly when you're signed in to the admin portal.</p>
 
   <div class="panel" id="signin">
-    <h2>1. Sign in</h2>
+    <h2>Sign in</h2>
     <form id="sf" class="grid">
       <label><span>Admin book ID</span><input name="id" autocomplete="off" required></label>
       <label><span>PIN</span><input name="pin" type="password" inputmode="numeric" required></label>
@@ -113,7 +145,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   </div>
 
   <div class="panel" id="choose" hidden>
-    <h2>2. Choose exams</h2>
+    <h2>Choose exams</h2>
     <div class="actions" style="margin:0 0 .6rem">
       <button type="button" class="ghost" id="all">Select all</button>
       <button type="button" class="ghost" id="none">Clear</button>
@@ -123,7 +155,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   </div>
 
   <div class="panel" id="opts" hidden>
-    <h2>3. Options</h2>
+    <h2>Options</h2>
     <div class="grid">
       <label><span>Paper size</span><select id="size"><option value="A5">A5 (same as the OMR sheet)</option><option value="A4">A4</option></select></label>
       <label><span>Questions per page</span><select id="cols"><option value="1">One column</option><option value="2">Two columns</option></select></label>

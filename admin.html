@@ -205,7 +205,7 @@ td a { color: var(--ink-text); font-weight: 600; }
 'use strict';
 const CFG = Object.assign({ API_URL: '', SITE_NAME: 'Portal' }, window.PORTAL_CONFIG || {});
 const API_URL = String(CFG.API_URL || '').trim();
-const ADMIN_VERSION = '3.2';
+const ADMIN_VERSION = '3.3';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = {
@@ -1126,6 +1126,7 @@ async function viewSettings() {
   $('#main').innerHTML = `<h1>Settings</h1><p class="lede">These apply to the whole site.</p>
     <form class="card stack" id="sf" style="max-width:40rem">
       <label class="f"><span>Website address</span><input class="t" name="site" value="${esc(s.siteUrl)}" placeholder="https://exam.yourdomain.com/"><small>Book QR codes point here. Set it before making book IDs; printed QR codes can't change later.</small></label>
+      <label class="f"><span>Classes</span><input class="t" name="classes" value="${esc(s.classList || '')}" placeholder="SSC 27, SSC 28, HSC 27, HSC 28"><small>Separated by commas. Students choose from this list, and their ID comes from it: SSC 27 → S27001, HSC 28 → H28001. Add next year's classes when admission opens.</small></label>
       <label class="f"><span>Centre address (printed on receipts and ID cards)</span><input class="t" name="caddr" value="${esc(s.centreAddress || '')}" maxlength="200"></label>
       <div class="grid2"><label class="f"><span>Centre phone</span><input class="t" name="cphone" value="${esc(s.centrePhone || '')}" maxlength="60"></label>
         <label class="f"><span>Receipt number letters</span><input class="t" name="rprefix" value="${esc(s.receiptPrefix || 'GP')}" maxlength="6" style="text-transform:uppercase"><small>Receipts look like ${esc(s.receiptPrefix || 'GP')}26-00001.</small></label></div>
@@ -1147,7 +1148,7 @@ async function viewSettings() {
     e.preventDefault();
     const f = e.target, box = f.querySelector('.err'); box.hidden = true;
     try { await api('settingsSave', { settings: { siteUrl: f.site.value.trim(), markCorrect: f.mc.value, markWrong: f.mw.value, published: f.pub.checked, size: f.size.value,
-      centreAddress: f.caddr.value.trim(), centrePhone: f.cphone.value.trim(), receiptPrefix: f.rprefix.value.trim() } }); toast('Settings saved'); cat = null; }
+      centreAddress: f.caddr.value.trim(), centrePhone: f.cphone.value.trim(), receiptPrefix: f.rprefix.value.trim(), classList: f.classes.value } }); toast('Settings saved'); cat = null; lms = null; }
     catch (err) { box.hidden = false; box.textContent = errText(err); }
   };
   if (gh) $('#main').appendChild(githubSettings(gh));
@@ -1429,7 +1430,7 @@ Object.assign(ERR, {
   INVALID_PHONE: 'Enter a valid mobile number like 017XXXXXXXX.', INVALID_GUARDIAN_PHONE: 'Enter a valid guardian mobile number.',
   PHONE_TAKEN: 'Another student already uses this mobile number.', STUDENT_NOT_FOUND: 'Student not found.',
   STUDENT_NOT_ACTIVE: 'Approve the student before enrolling them.', BATCH_NOT_FOUND: 'Choose a batch.', BATCH_CLOSED: 'That batch is closed.',
-  ALREADY_ENROLLED: 'Already enrolled in this batch.', ENROLLMENT_NOT_FOUND: 'Enrollment not found. Reload the page.',
+  ALREADY_ENROLLED: 'Already enrolled in this batch.', INVALID_CLASS: 'Choose the class (e.g. SSC 27). Classes are listed in Settings.', ENROLLMENT_NOT_FOUND: 'Enrollment not found. Reload the page.',
 });
 let lms = null;
 async function ensureLms(fresh) { if (!lms || fresh) lms = await api('lmsCatalog'); return lms; }
@@ -1541,7 +1542,7 @@ function chapterDialog(ch, subjectId) {
 }
 
 /* ---------- students list ---------- */
-let stuFilter = { status: '', q: '', batchId: '' };
+let stuFilter = { status: '', q: '', batchId: '', classLevel: '' };
 async function viewLStudents(arg) {
   shell('lstudents', '<p class="muted">Loading…</p>');
   try { await ensureLms(); } catch (e) { return pageError(e); }
@@ -1553,13 +1554,14 @@ async function viewLStudents(arg) {
     <nav class="tabs" id="stabs"></nav>
     <form class="row" id="sf" style="margin-bottom:1rem">
       <input class="t" name="q" placeholder="Search name, ID, phone, school" style="max-width:18rem" value="${esc(stuFilter.q)}">
+      <select class="t" name="cls" style="max-width:10rem"><option value="">All classes</option>${(lms.classes || []).map(c => `<option ${c === stuFilter.classLevel ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
       <select class="t" name="batch" style="max-width:20rem"><option value="">All batches</option>${lms.batches.map(b => `<option value="${esc(b.id)}" ${b.id === stuFilter.batchId ? 'selected' : ''}>${esc(batchLabel(b.id))}</option>`).join('')}</select>
       <button class="btn ghost">Search</button>
       ${stuFilter.batchId ? '<button type="button" class="btn ghost sm" id="cardsAll">Print ID cards for this batch</button>' : ''}
     </form>
     <div class="card tw" id="slist"><p class="muted">Loading…</p></div>`;
-  if ($('#addStu')) $('#addStu').onclick = () => studentDialog(null);
-  $('#sf').onsubmit = e => { e.preventDefault(); stuFilter.q = e.target.q.value.trim(); stuFilter.batchId = e.target.batch.value; viewLStudents(); };
+  if ($('#addStu')) $('#addStu').onclick = async () => { await ensureLms(); studentDialog(null); };
+  $('#sf').onsubmit = e => { e.preventDefault(); stuFilter.q = e.target.q.value.trim(); stuFilter.batchId = e.target.batch.value; stuFilter.classLevel = e.target.cls.value; viewLStudents(); };
   let r;
   try { r = await api('studentsList', stuFilter); } catch (e) { $('#slist').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; return; }
   if (r.counts) $('#stabs').innerHTML = [['', 'All', r.counts.total], ['PENDING', 'Waiting approval', r.counts.pending], ['ACTIVE', 'Active', r.counts.active], ['BLOCKED', 'Blocked', r.counts.blocked]]
@@ -1649,7 +1651,8 @@ function studentDialog(s) {
     <div class="grid2"><label class="f"><span>Guardian's name</span><input class="t" name="gname" value="${esc(s ? s.guardianName : '')}"></label>
       <label class="f"><span>Guardian's mobile</span><input class="t" name="gphone" type="tel" value="${esc(s ? s.guardianPhone : '')}"></label></div>
     <div class="grid2"><label class="f"><span>School / college</span><input class="t" name="inst" value="${esc(s ? s.institution : '')}"></label>
-      <label class="f"><span>Class</span><input class="t" name="cls" value="${esc(s ? s.classLevel : '')}" placeholder="HSC 1st year"></label></div>
+      <label class="f"><span>Class</span><select class="t" name="cls" required><option value="">Choose…</option>${[...new Set([...(lms.classes || []), ...(s && s.classLevel ? [s.classLevel] : [])])].map(c => `<option ${s && s.classLevel === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+        <small>${s ? 'The student ID stays the same if the class changes.' : 'The student ID comes from the class: SSC 27 → S27001.'}</small></label></div>
     <label class="f"><span>Address</span><input class="t" name="addr" value="${esc(s ? s.address : '')}"></label>
     <div><label class="f"><span>Photo (optional)</span><input class="t" name="photo" value="${esc(s ? s.photo : '')}" placeholder="file name"></label>
       <div class="row" style="margin-top:.35rem"><button type="button" class="btn ghost sm" id="upPhoto">Upload photo…</button><input type="file" accept="image/*" id="photoFile" hidden><small class="muted">Uses picture upload (Settings).</small></div></div>
@@ -1794,12 +1797,12 @@ function printReceipt(r) {
 function viewFees() {
   shell('fees', `<h1>Collect fees</h1>
     <p class="lede">Type a student ID, or scan the QR code on their ID card. A USB QR scanner works here too: click the box and scan.</p>
-    <form class="card row" id="ff" style="max-width:40rem"><input class="t" name="q" placeholder="S26-0001, name or mobile" autofocus style="flex:1;min-width:12rem"><button class="btn">Find</button></form>
+    <form class="card row" id="ff" style="max-width:40rem"><input class="t" name="q" placeholder="H28003, name or mobile" autofocus style="flex:1;min-width:12rem"><button class="btn">Find</button></form>
     <div id="fres" style="margin-top:1rem"></div>`);
   $('#ff').onsubmit = async e => {
     e.preventDefault();
     let q = e.target.q.value.trim();
-    const m = q.match(/#\/collect\/([^\/?#\s]+)/) || q.match(/^\s*(S\d{2}-\d{3,})\s*$/i);
+    const m = q.match(/#\/collect\/([^\/?#\s]+)/) || q.match(/^\s*([A-Z]\d{2}-?\d{3,})\s*$/i);
     if (m) { location.hash = '#/collect/' + encodeURIComponent(decodeURIComponent(m[1]).toUpperCase()); return; }
     try {
       const r = await api('studentsList', { q, limit: 50 });

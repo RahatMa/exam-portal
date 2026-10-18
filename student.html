@@ -36,6 +36,7 @@ label.f span { display: block; font-weight: 600; font-size: .95rem; margin-botto
 label.f small { display: block; color: var(--muted); font-size: .85rem; margin-top: .2rem; }
 input.t { width: 100%; padding: .65rem .8rem; border: 1.5px solid var(--line); border-radius: 6px; background: var(--paper); }
 input.t:focus { border-color: var(--ink); outline: none; box-shadow: 0 0 0 3px var(--ink-soft); }
+select.t { width: 100%; padding: .65rem .8rem; border: 1.5px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--text); font: inherit; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
 @media (max-width: 460px) { .grid2 { grid-template-columns: 1fr; } }
 .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: .5rem 1.1rem; border-radius: 6px; cursor: pointer;
@@ -92,6 +93,9 @@ const en = v => String(v ?? '').replace(/[০-৯]/g, d => '০১২৩৪৫�
 const store = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} }, del: k => { try { localStorage.removeItem(k); } catch (e) {} } };
 let stoken = store.get('omr_student_token') || '';
 let me = null;
+let classes = null;   // from Settings (e.g. SSC 27, HSC 28)
+async function loadClasses() { if (!classes) { try { classes = (await api('publicInfo')).classes; } catch (e) { classes = []; } } return classes; }
+const classSelect = (cur, required) => `<select class="t" name="cls" ${required ? 'required' : ''}><option value="">বেছে নিন…</option>${[...new Set([...(classes || []), ...(cur ? [cur] : [])])].map(c => `<option ${c === cur ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>`;
 
 const MSG = {
   NETWORK: 'সার্ভারের সাথে সংযোগ হয়নি। ইন্টারনেট দেখে আবার চেষ্টা করুন।',
@@ -107,6 +111,7 @@ const MSG = {
   INVALID_NAME: 'নাম ২ থেকে ৬০ অক্ষরের মধ্যে লিখুন।',
   WEAK_PASSWORD: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।',
   BUSY: 'সার্ভারে চাপ বেশি। কয়েক সেকেন্ড পর চেষ্টা করুন।',
+  INVALID_CLASS: 'তালিকা থেকে আপনার শ্রেণি বেছে নিন।',
 };
 const msg = e => MSG[e.code] || 'কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।';
 
@@ -158,7 +163,8 @@ function viewLogin(error) {
   };
 }
 
-function viewRegister(error, keep = {}) {
+async function viewRegister(error, keep = {}) {
+  await loadClasses();
   const v = k => esc(keep[k] || '');
   paint(`<section class="card stack">
     <div><h1>নতুন নিবন্ধন</h1><p class="lede">নিবন্ধনের পর অফিস যাচাই করে অনুমোদন দিলে আপনার অ্যাকাউন্ট চালু হবে।</p></div>
@@ -172,7 +178,7 @@ function viewRegister(error, keep = {}) {
       </div>
       <div class="grid2">
         <label class="f"><span>স্কুল / কলেজ</span><input class="t" name="inst" value="${v('institution')}"></label>
-        <label class="f"><span>শ্রেণি</span><input class="t" name="cls" value="${v('classLevel')}" placeholder="যেমন: এইচএসসি ১ম বর্ষ"></label>
+        <label class="f"><span>শ্রেণি</span>${classSelect(keep.classLevel || '', true)}</label>
       </div>
       <label class="f"><span>ঠিকানা</span><input class="t" name="addr" value="${v('address')}"></label>
       <div class="grid2">
@@ -251,7 +257,8 @@ function viewHome() {
   bindCommon();
 }
 
-function viewProfile(error, ok) {
+async function viewProfile(error, ok) {
+  await loadClasses();
   paint(`${hello()}${tabs('profile')}
     <section class="card stack">
       <h2>প্রোফাইল</h2>
@@ -262,7 +269,7 @@ function viewProfile(error, ok) {
         <div class="grid2"><label class="f"><span>অভিভাবকের নাম</span><input class="t" name="gname" value="${esc(me.guardianName)}"></label>
           <label class="f"><span>অভিভাবকের মোবাইল</span><input class="t" name="gphone" type="tel" value="${esc(me.guardianPhone)}"></label></div>
         <div class="grid2"><label class="f"><span>স্কুল / কলেজ</span><input class="t" name="inst" value="${esc(me.institution)}"></label>
-          <label class="f"><span>শ্রেণি</span><input class="t" name="cls" value="${esc(me.classLevel)}"></label></div>
+          <label class="f"><span>শ্রেণি</span>${classSelect(me.classLevel, true)}</label></div>
         <label class="f"><span>ঠিকানা</span><input class="t" name="addr" value="${esc(me.address)}"></label>
         <button class="btn">সংরক্ষণ করুন</button>
       </form>
