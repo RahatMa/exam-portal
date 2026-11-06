@@ -85,6 +85,7 @@ summary { cursor: pointer; font-weight: 600; color: var(--ink-text); }
 (function () {
 'use strict';
 const CFG = Object.assign({ API_URL: '', SITE_NAME: 'কোচিং সেন্টার', SUPPORT_CONTACT: '', IMAGE_FOLDER: 'images/' }, window.PORTAL_CONFIG || {});
+if (CFG.COACHING_URL && !location.href.startsWith(CFG.COACHING_URL.replace(/\/?$/, '/'))) { location.replace(CFG.COACHING_URL.replace(/\/?$/, '/') + 'student.html' + location.hash); return; }
 const API_URL = String(CFG.API_URL || '').trim();
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

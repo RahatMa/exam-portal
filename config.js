@@ -6,14 +6,16 @@
    ========================================================= */
 window.PORTAL_CONFIG = {
   // Paste the Web app URL from Apps Script (Deploy > Manage deployments). It ends with /exec
-  API_URL:
-    "https://script.google.com/macros/s/AKfycbwgUvgV8Wh1H0PkRvEATrFAVJn5Fz7TQyJHB-alTYA4WkttWU2Yl96C4mz3z_ftyMdh/exec",
+  API_URL: 'PASTE_YOUR_WEB_APP_URL_HERE',
   // Name shown at the top of every page and on printed papers.
-  SITE_NAME: "goal.PHYSICS",
+  SITE_NAME: 'goal.physics',
   // Shown to students who forget their PIN.
-  SUPPORT_CONTACT: "প্রকাশকের হেল্পলাইন: 01608370680",
+  SUPPORT_CONTACT: 'প্রকাশকের হেল্পলাইন: 01XXXXXXXXX',
   // Logo file on this website (shown on pages, receipts and ID cards).
-  LOGO: "goal_logo.png",
+  LOGO: 'logo.png',
+  // EXAM site only: the coaching website's address, e.g. 'https://coaching.goalphysics.com/'.
+  // Old student links and ID-card QR codes that point here are forwarded to it. Leave '' on the coaching site.
+  COACHING_URL: '',
   // Folder on this website where question pictures live.
-  IMAGE_FOLDER: "images/",
+  IMAGE_FOLDER: 'images/',
 };

@@ -277,33 +277,85 @@
     return hits.map((h, i) => ({ key: h.key, text: text.slice(h.end, i + 1 < hits.length ? hits[i + 1].at : undefined).trim() }));
   }
 
+  // Section headings switch the question type for the questions that follow.
+  // A heading line on its own, e.g. "সৃজনশীল প্রশ্ন", "খ অংশ: সংক্ষিপ্ত প্রশ্ন (২০ নম্বর)", "Math problems:".
+  const SECTION_WORDS = [
+    ['CQ', 'সৃজনশীল|Creative|CQ'], ['SQ', 'সংক্ষিপ্ত|Short(?:\\s*answer)?|SQ'],
+    ['MATH', 'গাণিতিক|গানিতিক|Mathematical|Math'], ['MCQ', 'বহুনির্বাচনী|Multiple\\s*choice|MCQ'],
+  ].map(([type, words]) => [new RegExp('^(?:[কখগঘ]\\s*(?:অংশ|বিভাগ)\\s*[:：ঃ.\\-–]?\\s*|(?:Part|Section)\\s*[A-D1-4]\\s*[:.\\-–]?\\s*|\\d+\\s*[.)]\\s*)?(?:' + words + ')\\s*(?:প্রশ্ন(?:াবলি|সমূহ)?|সমস্যা(?:বলি|সমূহ)?|অংশ|questions?|problems?|part|section)?$', 'i'), type]);
+  const RE_SECTION = SECTION_WORDS;
+  const RE_PART = /^\(?\s*([কখগঘঙচ])\s*[.)।]\s*/;          // CQ parts: ক.  (খ)  গ)
+  const RE_MARKS = /\s*[\[(]\s*([০-৯0-9]+(?:\.[০-৯0-9]+)?)\s*[\])]\s*$/;  // trailing [৩] or (5)
+  const RE_WANS = /^(উত্তর|সমাধান(?:\s*[\/ও]\s*ব্যাখ্যা)?|ব্যাখ্যা|Answer|Solution)\s*[:：ঃ]\s*/i;
+  const PART_KEYS = 'কখগঘঙচ';
+  const CQ_DEFAULT = [1, 2, 3, 4, 4, 4];
+
+  function sectionOf(t) {
+    if (t.length > 60 || RE_OPT_START.test(t)) return null;
+    const core = t.replace(/\s*(?:\([^)]*\)|\[[^\]]*\])\s*$/, '').replace(/[\s:：ঃ.\-–]+$/, '').trim();
+    for (const [re, type] of RE_SECTION) if (re.test(core)) return type;
+    return null;
+  }
+  function takeMarks(text) {
+    const m = RE_MARKS.exec(text);
+    return m ? { text: text.slice(0, m.index).trim(), marks: Number(enDigits(m[1])) } : { text: text, marks: null };
+  }
+
   function findQuestions(lines) {
     const qs = [];
-    let cur = null, part = 'pre';
+    let cur = null, part = 'pre', mode = 'MCQ', freshSection = false;
     const start = no => {
-      cur = { no, qLines: [], options: { A: '', B: '', C: '', D: '' }, optCount: 0, answer: '', sLines: [], problems: [] };
-      qs.push(cur); part = 'q';
+      cur = { no, type: mode, qLines: [], options: { A: '', B: '', C: '', D: '' }, optCount: 0, answer: '', sLines: [], parts: [], marks: null, lastOpt: null };
+      qs.push(cur); part = 'q'; freshSection = false;
     };
-    const ready = () => cur && cur.answer && cur.optCount >= 4;
+    const ready = () => cur && (cur.type === 'MCQ' ? cur.answer && cur.optCount >= 4 : cur.type === 'CQ' ? cur.parts.length > 0 : cur.qLines.length > 0);
     for (const ln of lines) {
       let t = ln.text;
+      const sec = sectionOf(t);
+      if (sec) { mode = sec; freshSection = true; part = 'pre'; continue; }
       const qm = RE_Q.exec(t);
       const optStart = RE_OPT_START.exec(t);
-      // a new question: explicit number in sequence, or a Word-numbered first-level paragraph
-      if (qm && !optStart) {
+      const partStart = mode === 'CQ' ? RE_PART.exec(t) : null;
+      if (qm && !optStart && !partStart) {
         const no = parseInt(enDigits(qm[1]), 10);
-        if (!cur || no === cur.no + 1 || (ready() && no > cur.no) || part === 'pre') { start(no); t = t.slice(qm[0].length); if (t) cur.qLines.push(t); continue; }
-      } else if (ln.list === 'q' && (!cur || part !== 'q' || cur.optCount)) {
+        if (!cur || freshSection || cur.type !== mode || no === cur.no + 1 || (ready() && no > cur.no) || part === 'pre') {
+          start(no); t = t.slice(qm[0].length);
+          if (t) { if (mode === 'SQ' || mode === 'MATH') { const mk = takeMarks(t); t = mk.text; if (mk.marks !== null) cur.marks = mk.marks; } cur.qLines.push(t); }
+          continue;
+        }
+      } else if (ln.list === 'q' && (!cur || part !== 'q' || cur.optCount || cur.parts.length)) {
         start(cur ? cur.no + 1 : 1); if (t) cur.qLines.push(t); continue;
       }
       if (!cur) continue; // text before the first question (title, instructions)
 
+      if (cur.type === 'CQ') {
+        if (partStart) {
+          const mk = takeMarks(t.slice(partStart[0].length).trim());
+          const idx = PART_KEYS.indexOf(partStart[1]);
+          cur.parts.push({ text: mk.text, marks: mk.marks !== null ? mk.marks : CQ_DEFAULT[idx] || 1, solution: '' });
+          part = 'p'; continue;
+        }
+        const wa = RE_WANS.exec(t);
+        if (wa) { part = cur.parts.length ? 'ps' : 's'; t = t.slice(wa[0].length).trim(); }
+        if (part === 'ps') { const pp = cur.parts[cur.parts.length - 1]; if (t) pp.solution += (pp.solution ? '\n' : '') + t; continue; }
+        if (part === 's') { if (t) cur.sLines.push(t); continue; }
+        if (part === 'p') { const pp = cur.parts[cur.parts.length - 1]; const mk = takeMarks(t); if (mk.marks !== null) pp.marks = mk.marks; pp.text += '\n' + mk.text; continue; }
+        cur.qLines.push(t); continue;
+      }
+      if (cur.type === 'SQ' || cur.type === 'MATH') {
+        const wa = RE_WANS.exec(t);
+        if (wa) { part = 's'; t = t.slice(wa[0].length).trim(); if (t) cur.sLines.push(t); continue; }
+        if (part === 's') { cur.sLines.push(t); continue; }
+        const mk = takeMarks(t); if (mk.marks !== null) cur.marks = mk.marks;
+        cur.qLines.push(mk.text); continue;
+      }
+
+      // MCQ
       const am = RE_ANS.exec(t);
       if (am && part !== 's') { cur.answer = LETTER[am[1]] || ''; part = 'a'; const rest = t.slice(am[0].length).trim(); if (rest) { const sm = RE_SOL.exec(rest); if (sm) { part = 's'; if (rest.slice(sm[0].length)) cur.sLines.push(rest.slice(sm[0].length)); } } continue; }
       const sm = RE_SOL.exec(t);
       if (sm && part !== 's') { part = 's'; t = t.slice(sm[0].length).trim(); if (t) cur.sLines.push(t); continue; }
       if (part === 's') { cur.sLines.push(t); continue; }
-
       const many = splitOptions(t);
       if (many) { many.forEach(o => { if (!cur.options[o.key]) cur.optCount++; cur.options[o.key] = o.text; }); part = 'o'; continue; }
       if (optStart) {
@@ -322,18 +374,12 @@
       else cur.sLines.push(t); // stray text after the answer: treat as solution
     }
 
-    return qs.map((q, i) => {
-      const out = {
-        no: q.no, question: q.qLines.join('\n').trim(), options: ['A', 'B', 'C', 'D'].map(k => q.options[k].trim()),
-        answer: q.answer, solution: q.sLines.join('\n').trim(), problems: [],
-      };
-      if (!out.question) out.problems.push('No question text');
-      const missing = out.options.map((o, j) => o ? '' : 'কখগঘ'[j]).filter(Boolean);
-      if (missing.length) out.problems.push('Missing option ' + missing.join(', '));
-      if (!out.answer) out.problems.push('No correct answer found');
-      if (i && q.no !== qs[i - 1].no + 1) out.problems.push('Number ' + q.no + ' is out of order');
-      return out;
-    });
+    return qs.map(q => ({
+      no: q.no, type: q.type, question: q.qLines.join('\n').trim(), options: ['A', 'B', 'C', 'D'].map(k => q.options[k].trim()),
+      answer: q.type === 'MCQ' ? q.answer : '', solution: q.sLines.join('\n').trim(),
+      parts: q.parts.map(p => ({ text: p.text.trim(), marks: p.marks, solution: p.solution.trim() })),
+      marks: q.type === 'SQ' || q.type === 'MATH' ? q.marks : null, problems: [],
+    }));
   }
 
   global.DocxImport = { parse: parse, findQuestions: findQuestions, omml: omml };

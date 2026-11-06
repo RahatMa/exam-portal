@@ -72,6 +72,13 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .opts.measure .opt { display: inline-grid; white-space: nowrap; }
 .keysec h3, .solsec h3 { font-size: 1.1em; margin: 0 0 2mm; border-bottom: .6pt solid #111; padding-bottom: 1mm; }
 .keysec .kname, .solsec .kname { font-weight: 700; margin: 2.5mm 0 1mm; break-after: avoid; }
+.sechead { display: flex; justify-content: space-between; font-weight: 700; font-size: 1.02em; border-bottom: .4pt solid #555; margin: 3mm 0 1.2mm; padding-bottom: .6mm; break-after: avoid; }
+.secrule { margin: 0 0 1.5mm; }
+.q.cq .cqp { display: grid; gap: .7mm; margin-top: 1mm; }
+.q.cq .cqp > div { display: grid; grid-template-columns: 1.4em 1fr auto; gap: 0 1.2mm; }
+.q.cq .cqp em, .q.wq .wm { font-style: normal; font-weight: 600; padding-left: 2mm; }
+.q.wq { grid-template-columns: 1.7em 1fr auto; }
+.solsec-h { font-weight: 700; margin: 2mm 0 .5mm; }
 .key { display: grid; grid-template-columns: repeat(5, 1fr); border-top: .4pt solid #999; border-left: .4pt solid #999; font-size: .95em; margin-bottom: 3mm; }
 .key span { border-right: .4pt solid #999; border-bottom: .4pt solid #999; padding: .6mm 1.5mm; }
 .sol { break-inside: avoid; padding: 1.2mm 0 2mm; border-bottom: .3pt dashed #bbb; }
@@ -128,7 +135,7 @@ h1 { color: var(--text); }
 <header class="topbar no-print"><div class="in">
   <a class="logo" href="admin.html#/home"><img src="logo.png" alt="goal.physics" onerror="this.remove()"><small>ADMIN</small></a>
   <a class="back" href="admin.html#/home">← Admin home</a>
-  <nav class="maintabs" aria-label="Sections"><a href="admin.html#/home">Home</a><a href="admin.html#/courses">Coaching centre</a><a href="admin.html#/fees">Fees</a><a href="admin.html#/books" aria-current="page">Books & OMR</a><a href="admin.html#/settings">System</a></nav>
+  <nav class="maintabs" aria-label="Sections"><a href="admin.html#/home">Home</a><a href="admin.html#/bank">Question bank</a><a href="admin.html#/books" aria-current="page">Books & OMR</a><a href="admin.html#/settings">System</a></nav>
 </div></header>
 <nav class="subtabs no-print" aria-label="Books & OMR"><a href="admin.html#/books">Books & exams</a><a href="admin.html#/questions">Questions</a><a href="admin.html#/results">Results</a><a href="print.html" aria-current="page">Print papers</a><a href="omr-sheet.html">OMR sheet maker</a><a href="admin.html#/bookids">Book IDs & QR</a></nav>
 <div class="tool">
@@ -164,6 +171,7 @@ h1 { color: var(--text); }
       <label><span>Answer key</span><select id="key"><option value="none">Don't print</option><option value="each">After each paper</option><option value="end" selected>All together at the end</option></select></label>
       <label><span>Detailed solutions</span><select id="sol"><option value="none" selected>Don't print</option><option value="each">After each paper</option><option value="end">All together at the end</option></select></label>
       <label><span>OMR sheet</span><select id="omr"><option value="none">Don't print</option><option value="pink" selected>After each paper (pink ink)</option><option value="grey">After each paper (grey ink)</option></select></label>
+      <label><span>Instruction for written questions (optional)</span><input id="wnote" placeholder="যেকোনো ৩টি প্রশ্নের উত্তর দাও।"></label>
       <label><span>Website address (for QR codes)</span><input id="site" placeholder="https://exam.yourdomain.com/"></label>
     </div>
     <div style="margin-top:.8rem;display:grid;gap:.3rem">
@@ -295,37 +303,73 @@ function qrSvg(text) {
 }
 
 /* ---------- building the document ---------- */
+const SEC_BN = { MCQ: 'বহুনির্বাচনী প্রশ্ন', CQ: 'সৃজনশীল প্রশ্ন', SQ: 'সংক্ষিপ্ত প্রশ্ন', MATH: 'গাণিতিক সমস্যা' };
+const PARTS_BN = ['ক', 'খ', 'গ', 'ঘ', 'ঙ', 'চ'];
+const typeOf = q => q.type || 'MCQ';
+const mcqOf = ex => ex.questions.filter(q => typeOf(q) === 'MCQ');
+const wMarks = q => typeOf(q) === 'CQ' ? (q.parts || []).reduce((a, p) => a + Number(p.marks || 0), 0) : Number(q.marks || 0);
+const num = v => bn(+Number(v).toFixed(2));
+
 function paperHtml(ex, o, marking) {
-  const n = ex.questions.length;
+  const mcq = mcqOf(ex);
   const mc = marking.correct, mw = marking.wrong;
-  const rule = `প্রতিটি প্রশ্নের মান ${bn(mc)}।` + (mw < 0 ? ` প্রতিটি ভুল উত্তরের জন্য ${bn(Math.abs(mw))} নম্বর কাটা যাবে।` : '') +
-    ' সঠিক উত্তরের বৃত্তটি OMR শিটে ভরাট করুন।';
-  const qr = o.qr && o.site ? `<div class="qr">${qrSvg(OMR_LAYOUT.qrText(ex.id, n, o.site))}উত্তর জমা দিতে স্ক্যান করুন</div>` : '<div></div>';
-  const qs = ex.questions.map((q, i) => {
-    const opts = q.options.map((t, j) => `<div class="opt"><b>(${LABELS[j]})</b><span>${rich(t)}</span></div>`).join('');
-    return `<div class="q"><span class="n">${bn(i + 1)}.</span><div><div class="t">${rich(q.question)}</div>${imgTag(q.image)}<div class="opts c4">${opts}</div></div></div>`;
+  const written = ex.questions.filter(q => typeOf(q) !== 'MCQ');
+  const full = mcq.length * mc + written.reduce((a, q) => a + wMarks(q), 0);
+  const qr = o.qr && o.site && mcq.length ? `<div class="qr">${qrSvg(OMR_LAYOUT.qrText(ex.id, mcq.length, o.site))}উত্তর জমা দিতে স্ক্যান করুন</div>` : '<div></div>';
+  const sections = ['MCQ', 'CQ', 'SQ', 'MATH'].filter(t => ex.questions.some(q => typeOf(q) === t));
+  const multi = sections.length > 1;
+  const body = sections.map((t, si) => {
+    const list = ex.questions.filter(q => typeOf(q) === t);
+    const marks = t === 'MCQ' ? list.length * mc : list.reduce((a, q) => a + wMarks(q), 0);
+    const head = multi ? `<div class="sechead"><span>${multi ? PARTS_BN[si] + ' অংশ: ' : ''}${SEC_BN[t]}</span><span>নম্বর: ${num(marks)}</span></div>` : '';
+    let rule = '';
+    if (t === 'MCQ') rule = `প্রতিটি প্রশ্নের মান ${num(mc)}।` + (mw < 0 ? ` প্রতিটি ভুল উত্তরের জন্য ${num(Math.abs(mw))} নম্বর কাটা যাবে।` : '') + ' সঠিক উত্তরের বৃত্তটি OMR শিটে ভরাট করুন।';
+    else if (o.wnote) rule = esc(o.wnote);
+    const qs = list.map((q, i) => {
+      if (t === 'MCQ') {
+        const opts = q.options.map((x, j) => `<div class="opt"><b>(${LABELS[j]})</b><span>${rich(x)}</span></div>`).join('');
+        return `<div class="q"><span class="n">${bn(i + 1)}.</span><div><div class="t">${rich(q.question)}</div>${imgTag(q.image)}<div class="opts c4">${opts}</div></div></div>`;
+      }
+      if (t === 'CQ') return `<div class="q cq"><span class="n">${bn(i + 1)}.</span><div><div class="t">${rich(q.question)}</div>${imgTag(q.image)}
+        <div class="cqp">${(q.parts || []).map((p, j) => `<div><b>${PARTS_BN[j]}.</b><span>${rich(p.text)}</span><em>${num(p.marks)}</em></div>`).join('')}</div></div></div>`;
+      return `<div class="q wq"><span class="n">${bn(i + 1)}.</span><div class="t">${rich(q.question)}${imgTag(q.image)}</div><em class="wm">${num(q.marks)}</em></div>`;
+    }).join('');
+    return `${head}${rule ? `<div class="rule secrule">${rule}</div>` : ''}<div class="qs ${o.cols === '2' && t === 'MCQ' ? 'two' : ''}">${qs}</div>`;
   }).join('');
+  const counts = sections.map(t => `${SEC_BN[t].replace(' প্রশ্ন', '')}: ${bn(ex.questions.filter(q => typeOf(q) === t).length)}টি`).join(', ');
   return `<section class="exam">
     <header class="phead"><div>
       <div class="book serif">${esc(o.book)}</div>
       <div class="ename">${esc(ex.name)}</div>
-      <div class="meta"><span>পরীক্ষা কোড: ${esc(ex.id)}</span><span>প্রশ্ন: ${bn(n)}টি</span><span>পূর্ণমান: ${bn(+(n * mc).toFixed(2))}</span>${o.time ? `<span>সময়: ${bn(o.time)} মিনিট</span>` : ''}</div>
-      <div class="rule">${rule}</div>
+      <div class="meta"><span>পরীক্ষা কোড: ${esc(ex.id)}</span><span>${multi ? counts : 'প্রশ্ন: ' + bn(ex.questions.length) + 'টি'}</span><span>পূর্ণমান: ${num(full)}</span>${o.time ? `<span>সময়: ${bn(o.time)} মিনিট</span>` : ''}</div>
+      ${!multi && sections[0] === 'MCQ' ? '' : '<div class="rule">ডান পাশের সংখ্যা প্রশ্নের পূর্ণমান জ্ঞাপক।</div>'}
     </div>${qr}</header>
-    <div class="qs ${o.cols === '2' ? 'two' : ''}">${qs}</div>
+    ${body}
   </section>`;
 }
 function keyHtml(list, title) {
-  return list.map(ex => `<div class="kname">${esc(ex.name)} <span style="font-weight:400">(${esc(ex.id)})</span></div>
-    <div class="key">${ex.questions.map((q, i) => `<span>${bn(i + 1)}. ${LABELS[KEYS.indexOf(q.answer)] || '?'}</span>`).join('')}</div>`).join('');
+  return list.filter(ex => mcqOf(ex).length).map(ex => `<div class="kname">${esc(ex.name)} <span style="font-weight:400">(${esc(ex.id)}, MCQ)</span></div>
+    <div class="key">${mcqOf(ex).map((q, i) => `<span>${bn(i + 1)}. ${LABELS[KEYS.indexOf(q.answer)] || '?'}</span>`).join('')}</div>`).join('');
 }
 function solHtml(list) {
-  return list.map(ex => `<div class="kname">${esc(ex.name)} <span style="font-weight:400">(${esc(ex.id)})</span></div>` +
-    ex.questions.map((q, i) => `<div class="sol"><span class="ans">${bn(i + 1)}. সঠিক উত্তর: (${LABELS[KEYS.indexOf(q.answer)] || '?'}) ${rich(q.options[KEYS.indexOf(q.answer)] || '')}</span>
-      ${q.solution ? `<div>${rich(q.solution)}</div>` : ''}${imgTag(q.solutionImage)}</div>`).join('')).join('');
+  return list.map(ex => {
+    const sections = ['MCQ', 'CQ', 'SQ', 'MATH'].filter(t => ex.questions.some(q => typeOf(q) === t));
+    return `<div class="kname">${esc(ex.name)} <span style="font-weight:400">(${esc(ex.id)})</span></div>` + sections.map(t => {
+      const qs = ex.questions.filter(q => typeOf(q) === t);
+      return (sections.length > 1 ? `<div class="solsec-h">${SEC_BN[t]}</div>` : '') + qs.map((q, i) => {
+        if (t === 'MCQ') return `<div class="sol"><span class="ans">${bn(i + 1)}. সঠিক উত্তর: (${LABELS[KEYS.indexOf(q.answer)] || '?'}) ${rich(q.options[KEYS.indexOf(q.answer)] || '')}</span>
+          ${q.solution ? `<div>${rich(q.solution)}</div>` : ''}${imgTag(q.solutionImage)}</div>`;
+        if (t === 'CQ') return `<div class="sol"><span class="ans">${bn(i + 1)}.</span>${(q.parts || []).map((p, j) => p.solution ? `<div><b>${PARTS_BN[j]}.</b> ${rich(p.solution)}</div>` : '').join('')}
+          ${q.solution ? `<div>${rich(q.solution)}</div>` : ''}${imgTag(q.solutionImage)}${!(q.parts || []).some(p => p.solution) && !q.solution ? '<div style="color:#888">সমাধান দেওয়া হয়নি।</div>' : ''}</div>`;
+        return `<div class="sol"><span class="ans">${bn(i + 1)}.</span> ${q.solution ? `<div>${rich(q.solution)}</div>` : '<div style="color:#888">সমাধান দেওয়া হয়নি।</div>'}${imgTag(q.solutionImage)}</div>`;
+      }).join('');
+    }).join('');
+  }).join('');
 }
 function omrHtml(ex, o) {
-  return `<section class="omrpage">${OMR_DRAW.svg({ examId: ex.id, examName: ex.name, n: ex.questions.length, book: o.book, site: o.site, ink: o.omr })}</section>`;
+  const n = mcqOf(ex).length;
+  if (!n) return '';
+  return `<section class="omrpage">${OMR_DRAW.svg({ examId: ex.id, examName: ex.name, n, book: o.book, site: o.site, ink: o.omr })}</section>`;
 }
 
 $('#make').onclick = async () => {
@@ -334,7 +378,7 @@ $('#make').onclick = async () => {
   const o = {
     size: $('#size').value, cols: $('#cols').value, fs: $('#fs').value, time: parseInt($('#time').value, 10) || 0,
     key: $('#key').value, sol: $('#sol').value, omr: $('#omr').value, qr: $('#qr').checked,
-    site: siteBase(), book: CFG.SITE_NAME || '',
+    site: siteBase(), book: CFG.SITE_NAME || '', wnote: ($('#wnote') || {}).value || '',
   };
   if ((o.omr !== 'none' || o.qr) && !/^https:\/\//.test(o.site)) return say('Enter your website address (https://…) for the QR codes, or turn the QR code and OMR sheet off.', true);
   const pt = { s: 9.5, m: 10.5, l: 11.5 }[o.fs] * (o.size === 'A4' ? 1.05 : 1);

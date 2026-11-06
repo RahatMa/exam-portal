@@ -158,6 +158,32 @@ textarea.t:focus { border-color: var(--ink); outline: none; box-shadow: 0 0 0 3p
 .preview .sol { margin-top: .6rem; padding-top: .6rem; border-top: 1px dashed var(--line); }
 .katex-display { overflow-x: auto; overflow-y: hidden; }
 
+.typepick { display: flex; flex-wrap: wrap; gap: .35rem; }
+.typepick label { position: relative; }
+.typepick input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.typepick span { display: inline-block; padding: .3rem .8rem; border-radius: 999px; border: 1.5px solid var(--line); font-weight: 600; font-size: .9rem; cursor: pointer; }
+.typepick input:checked + span { background: var(--graphite); border-color: var(--graphite); color: var(--on-graphite); }
+.typepick input:disabled + span { opacity: .4; cursor: not-allowed; }
+.typepick input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
+.cqpart { border: 1px solid var(--line); border-radius: 8px; padding: .5rem .7rem .7rem; margin: 0; }
+.cqpart legend { font-weight: 700; padding: 0 .3rem; }
+.cqparts { list-style: none; margin: .45rem 0 0; padding: 0; display: grid; gap: .25rem; }
+.cqparts li { display: grid; grid-template-columns: 1.6rem 1fr auto; gap: .4rem; }
+.cqparts em, .mk { font-style: normal; color: var(--muted); font-size: .88rem; }
+.qtype { display: block; font-size: .68rem; font-weight: 700; letter-spacing: .04em; margin-top: .2rem; padding: .05rem .35rem; border-radius: 4px; text-align: center; background: var(--ink-soft); color: var(--ink-text); }
+.qtype.t-CQ { background: #fff1d0; color: #8a5a00; } .qtype.t-SQ { background: var(--ok-soft); color: var(--ok); } .qtype.t-MATH { background: #f1e6fd; color: #6b2bb5; }
+.bankgrid { display: grid; grid-template-columns: 17rem 1fr; gap: 1rem; align-items: start; }
+@media (max-width: 860px) { .bankgrid { grid-template-columns: 1fr; } }
+.banktree { padding: .6rem .7rem; position: sticky; top: 7rem; max-height: calc(100vh - 8rem); overflow: auto; }
+.banktree details { margin: .15rem 0; } .banktree details.sub { margin-left: .8rem; }
+.banktree summary { cursor: pointer; padding: .2rem .2rem; border-radius: 5px; display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
+.banktree summary:hover { background: var(--desk); }
+.banktree a { display: flex; justify-content: space-between; gap: .4rem; margin-left: 1.6rem; padding: .2rem .45rem; border-radius: 5px; text-decoration: none; color: var(--text); font-size: .93rem; }
+.banktree a:hover { background: var(--desk); } .banktree a.on { background: var(--ink-soft); color: var(--ink-text); font-weight: 600; }
+.banktree .cnt { font-size: .75rem; color: var(--muted); margin-left: auto; }
+.tiny { font-size: .75rem; }
+.qsel { width: 1rem; height: 1rem; vertical-align: -2px; margin-right: .15rem; }
+.qmeta { margin-top: .4rem; font-size: .8rem; color: var(--muted); }
 /* results */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: .7rem; }
 .stat { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: .7rem .9rem; }
@@ -206,7 +232,7 @@ td a { color: var(--ink-text); font-weight: 600; }
 'use strict';
 const CFG = Object.assign({ API_URL: '', SITE_NAME: 'Portal' }, window.PORTAL_CONFIG || {});
 const API_URL = String(CFG.API_URL || '').trim();
-const ADMIN_VERSION = '3.5';
+const ADMIN_VERSION = '5.0';
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = {
@@ -289,12 +315,18 @@ function dialog(html, onSubmit, init) {
 }
 
 /* ---------- sign-in & first setup ---------- */
+let portalName = 'both';
+const portalIs = p => portalName === 'both' || portalName === p;
 async function boot() {
+  // On the exam site, coaching links (student ID card QR codes, student.html) go to the coaching site.
+  const pg0 = location.hash.replace(/^#\/?/, '').split('/')[0];
+  if (CFG.COACHING_URL && ['collect', 'student', 'lstudents', 'fees', 'courses'].includes(pg0)) { location.replace(CFG.COACHING_URL.replace(/\/?$/, '/') + 'admin.html' + location.hash); return; }
   if (token) {
-    try { me = (await api('adminMe')).admin; return route(); } catch (e) { if (e.code !== 'NOT_SIGNED_IN') return showSignIn(errText(e)); }
+    try { me = (await api('adminMe')).admin; portalName = me.portal || 'both'; return route(); } catch (e) { if (e.code !== 'NOT_SIGNED_IN') return showSignIn(errText(e)); }
   }
   try {
     const s = await api('adminStatus');
+    portalName = s.portal || 'both';
     if (s.needsSetup) return showSetup();
   } catch (e) { return showSignIn(errText(e)); }
   showSignIn();
@@ -304,18 +336,20 @@ function centerCard(html) { $('#root').innerHTML = `<div class="center"><div cla
 
 function showSignIn(error) {
   centerCard(`
-    <div><h1>${esc(CFG.SITE_NAME)}</h1><p class="lede" style="margin:0">Admin sign-in · version ${ADMIN_VERSION}</p></div>
+    <div><h1>${esc(CFG.SITE_NAME)}</h1><p class="lede" style="margin:0">${portalName === 'coaching' ? 'Coaching portal' : portalName === 'exam' ? 'Exam portal' : 'Admin'} sign-in · version ${ADMIN_VERSION}</p></div>
     ${error ? `<p class="alert" role="alert">${esc(error)}</p>` : ''}
     <form id="f" class="stack">
       <label class="f"><span>Email</span><input class="t" name="email" type="email" autocomplete="username" required autofocus></label>
       <label class="f"><span>Password</span><input class="t" name="password" type="password" autocomplete="current-password" required></label>
       <button class="btn" style="width:100%;justify-content:center">Sign in</button>
-    </form>`);
+    </form>
+    ${portalIs('exam') ? '<p class="muted" style="margin:0;font-size:.9rem">Teacher who writes questions? <button class="link" id="signup">Ask for an account</button></p>' : ''}`);
+  if ($('#signup')) $('#signup').onclick = () => showSignup();
   $('#f').onsubmit = async e => {
     e.preventDefault();
     try {
       const r = await api('adminLogin', { email: e.target.email.value, password: e.target.password.value });
-      token = r.token; store.set('omr_admin_token', token); me = r.admin;
+      token = r.token; store.set('omr_admin_token', token); me = r.admin; portalName = me.portal || 'both';
       location.hash = '#/home'; route();
     } catch (err) { showSignIn(errText(err)); }
   };
@@ -349,22 +383,26 @@ async function signOut() {
 }
 
 /* ---------- shell ---------- */
-const ROLE_NAMES = { super: 'Super admin', manager: 'Manager', teacher: 'Teacher', desk: 'Desk / accountant', editor: 'Editor' };
+const ROLE_NAMES = { super: 'Super admin', manager: 'Manager', setter: 'Question setter', writer: 'Teacher (question writer)', teacher: 'Coaching teacher', desk: 'Desk / accountant', editor: 'Editor' };
 const can = p => me && (me.role === 'super' || (me.perms || []).includes(p));
 // Sections (top tabs) and their pages (second row of tabs).
 const SECTIONS = [
-  { id: 'coaching', label: 'Coaching centre', pages: [
-    { id: 'courses', label: 'Courses & batches', desc: 'Courses, batches, fees, teachers and syllabus.', show: () => true },
+  { id: 'coaching', label: 'Coaching centre', portal: 'coaching', pages: [
+    { id: 'courses', label: 'Courses & batches', desc: 'Courses, batches, fees, teachers and syllabus.', show: () => !['writer', 'setter'].includes(me.role) },
     { id: 'lstudents', label: 'Students', desc: 'Register, approve, enroll, ID cards.', show: () => can('students.view') },
     { id: 'mybatches', label: 'Batch lists', desc: 'Each batch with its students; printable lists.', show: () => can('students.view') },
   ] },
-  { id: 'fees', label: 'Fees', pages: [
+  { id: 'fees', label: 'Fees', portal: 'coaching', pages: [
     { id: 'fees', label: 'Collect fees', desc: 'Find or scan a student, take cash, print the receipt.', show: () => can('fees.collect') },
     { id: 'dues', label: 'Unpaid list', desc: 'Who owes what, by batch.', show: () => can('fees.report') },
     { id: 'cash', label: 'Cash report', desc: 'Money received per staff member and day.', show: () => can('fees.report') },
     { id: 'coupons', label: 'Coupons & offers', desc: 'Discount codes for fee collection.', show: () => can('coupons') },
   ] },
-  { id: 'books', label: 'Books & OMR', pages: [
+  { id: 'qbank', label: 'Question bank', portal: 'exam', pages: [
+    { id: 'bank', label: 'Question bank', desc: 'Segments, subjects and chapters with MCQ, CQ, SQ and math questions.', show: () => can('bank.view') },
+    { id: 'slides', label: 'Slides', href: 'slides/', desc: 'Editable PowerPoint class slides from bank questions or an Excel sheet.', show: () => can('bank.view') },
+  ] },
+  { id: 'books', label: 'Books & OMR', portal: 'exam', pages: [
     { id: 'books', label: 'Books & exams', desc: 'Books, subjects and OMR exams.', show: () => can('books.edit') },
     { id: 'questions', label: 'Questions', desc: 'Add, edit or upload questions from Word.', show: () => can('questions') },
     { id: 'results', label: 'Results', desc: 'Exam results, rankings and statistics.', show: () => can('results') },
@@ -381,13 +419,18 @@ const SECTIONS = [
   ] },
 ];
 // Pages without their own tab belong to one: a student's profile sits under Students, etc.
-const PAGE_PARENT = { student: 'lstudents', collect: 'fees', import: 'questions' };
+const PAGE_PARENT = { student: 'lstudents', collect: 'fees', import: 'questions', bankimport: 'bank' };
 function sectionOf(page) {
   page = PAGE_PARENT[page] || page;
   for (const sec of SECTIONS) if (sec.pages.some(p => p.id === page)) return { sec, page };
   return { sec: null, page };
 }
-const visiblePages = sec => sec.pages.filter(p => p.show());
+const visiblePages = sec => (sec.portal && !portalIs(sec.portal)) ? [] : sec.pages.filter(p => p.show());
+// Page ids that belong to a portal section the current portal doesn't have.
+function pageAllowed(page) {
+  const at = sectionOf(page);
+  return !at.sec || !at.sec.portal || portalIs(at.sec.portal);
+}
 const pageHref = p => p.href || '#/' + p.id;
 
 function shell(page, html) {
@@ -396,7 +439,7 @@ function shell(page, html) {
   const sub = at.sec ? visiblePages(at.sec) : [];
   $('#root').innerHTML = `
     <header class="topbar"><div class="in">
-      <a class="logo" href="#/home"><img src="${esc(CFG.LOGO || 'logo.png')}" alt="${esc(CFG.SITE_NAME)}"><small>ADMIN</small></a>
+      <a class="logo" href="#/home"><img src="${esc(CFG.LOGO || 'logo.png')}" alt="${esc(CFG.SITE_NAME)}"><small>${portalName === 'coaching' ? 'COACHING' : portalName === 'exam' ? 'EXAM PORTAL' : 'ADMIN'}</small></a>
       <div class="user"><span class="nm"><b>${esc(me.name)}</b> · ${ROLE_NAMES[me.role] || me.role} · </span><button class="link" id="out">Sign out</button></div>
       <nav class="maintabs" aria-label="Sections">
         <a href="#/home" ${page === 'home' ? 'aria-current="page"' : ''}>Home</a>
@@ -420,11 +463,11 @@ async function viewHome() {
   const stat = (n, label, href, warn) => `<a class="tile" href="${href}"><b style="font-size:1.6rem;${warn ? 'color:var(--bad)' : ''}">${n}</b><span>${label}</span></a>`;
   const out = [];
   try {
-    if (can('students.manage')) {
+    if (can('students.manage') && portalIs('coaching')) {
       const r = await api('studentsList', { status: 'PENDING', limit: 1 });
       if (r.counts) out.push(stat(r.counts.pending, 'students waiting for approval', '#/lstudents/pending', r.counts.pending > 0), stat(r.counts.active, 'active students', '#/lstudents'));
     }
-    if (can('fees.report')) {
+    if (can('fees.report') && portalIs('coaching')) {
       const c = await api('feeReport', {});
       out.push(stat(money(c.total), `collected today (${c.count} receipt${c.count === 1 ? '' : 's'})`, '#/cash'));
     }
@@ -435,9 +478,11 @@ async function viewHome() {
 function route() {
   if (!me) return boot();
   const [page, arg] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
-  if (page === 'home' || page === '') return viewHome();
+  if (page === 'home' || page === '' || !pageAllowed(page)) return viewHome();
   if (page === 'books' && can('books.edit')) return viewCatalog();
-  if (page === 'courses') return viewCourses(arg);
+  if (page === 'bank' && can('bank.view')) return viewBank(arg);
+  if (page === 'bankimport' && can('bank.write')) return viewBankImport(arg);
+  if (page === 'courses' && !['writer', 'setter'].includes(me.role)) return viewCourses(arg);
   if (page === 'fees' && can('fees.collect')) return viewFees();
   if (page === 'collect' && can('fees.collect')) return viewCollect(arg);
   if (page === 'dues' && can('fees.report')) return viewDues();
@@ -598,21 +643,29 @@ async function viewAdmins() {
   const draw = () => {
     $('#main').innerHTML = `
       <div class="row" style="margin-bottom:.2rem"><h1>Staff accounts</h1><span class="spacer"></span><button class="btn" id="add">+ Add staff</button></div>
-      <p class="lede"><b>Super admin:</b> everything. <b>Manager:</b> courses, batches, students, books and questions. <b>Teacher:</b> their own batches' students, results and printing. <b>Desk / accountant:</b> registers, approves and enrolls students. <b>Editor:</b> books, exams, questions and course chapters.</p>
+      <p class="lede">${portalName === 'coaching' ? '<b>Super admin:</b> everything. <b>Manager:</b> courses, batches, students and fees. <b>Coaching teacher:</b> their batches and students. <b>Desk / accountant:</b> registers students, enrolls them, takes fees.' : '<b>Super admin:</b> everything. <b>Manager</b> and <b>Editor:</b> books, exams, questions and the whole bank. <b>Question setter:</b> the whole question bank, exams and sets. <b>Teacher (question writer):</b> adds questions to the bank and edits their own; signs up on the sign-in page.'}</p>
+      ${list.some(a => a.pending) ? `<div class="card" style="margin-bottom:1rem;border-color:#e0a400"><h2 style="margin-bottom:.5rem">Waiting for approval</h2>
+        <table><tbody>${list.filter(a => a.pending).map(a => `<tr><td><b>${esc(a.name)}</b><br><span class="muted">${esc(a.email)}</span></td><td>${esc(a.phone)}<br><span class="muted">${esc(a.institution)}</span></td>
+          <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-approve="${esc(a.email)}">Approve as teacher</button> <button class="btn ghost sm" data-a="${esc(a.email)}">Choose role…</button> <button class="btn danger sm" data-reject="${esc(a.email)}">Reject</button></td></tr>`).join('')}</tbody></table></div>` : ''}
       <div class="card tw"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead><tbody>
-      ${list.map(a => `<tr><td>${esc(a.name)}</td><td>${esc(a.email)}</td>
+      ${list.filter(a => !a.pending).map(a => `<tr><td>${esc(a.name)}</td><td>${esc(a.email)}</td>
         <td>${a.role === 'super' ? '<span class="pill super">Super admin</span>' : `<span class="pill off">${ROLE_NAMES[a.role] || a.role}</span>`}</td>
         <td>${a.active ? '<span class="pill ok">Active</span>' : '<span class="pill off">Disabled</span>'}</td>
         <td class="muted">${a.lastLogin ? esc(new Date(a.lastLogin).toLocaleString()) : 'Never'}</td>
         <td style="text-align:right"><button class="btn ghost sm" data-a="${esc(a.email)}">Edit</button></td></tr>`).join('')}
       </tbody></table></div>`;
     $('#add').onclick = () => adminDialog(null);
+    document.querySelectorAll('[data-approve]').forEach(b => b.onclick = async () => { const a = list.find(x => x.email === b.dataset.approve);
+      try { list = (await api('adminSave', { email: a.email, name: a.name, role: 'writer', active: true })).admins; toast('Approved'); draw(); } catch (x) { toast(errText(x)); } });
+    document.querySelectorAll('[data-reject]').forEach(b => b.onclick = async () => { const a = list.find(x => x.email === b.dataset.reject);
+      if (!confirm(`Reject ${a.name}'s request? Their account stays disabled.`)) return;
+      try { list = (await api('adminSave', { email: a.email, name: a.name, role: 'writer', active: false })).admins; toast('Rejected'); draw(); } catch (x) { toast(errText(x)); } });
     document.querySelectorAll('[data-a]').forEach(b => { b.onclick = () => adminDialog(list.find(a => a.email === b.dataset.a)); });
   };
   const adminDialog = a => dialog(`<h2>${a ? 'Edit admin' : 'Add an admin'}</h2><div class="stack">
       <label class="f"><span>Name</span><input class="t" name="name" value="${esc(a ? a.name : '')}" required></label>
       <label class="f"><span>Email</span><input class="t" name="email" type="email" value="${esc(a ? a.email : '')}" ${a ? 'readonly' : 'required'}></label>
-      <div class="grid2"><label class="f"><span>Role</span><select class="t" name="role">${Object.keys(ROLE_NAMES).map(r => `<option value="${r}" ${(a ? a.role : 'teacher') === r ? 'selected' : ''}>${ROLE_NAMES[r]}</option>`).join('')}</select></label>
+      <div class="grid2"><label class="f"><span>Role</span><select class="t" name="role">${Object.keys(ROLE_NAMES).filter(r => portalName === 'both' || ({ exam: ['super', 'manager', 'setter', 'writer', 'editor'], coaching: ['super', 'manager', 'teacher', 'desk'] })[portalName].includes(r) || (a && a.role === r)).map(r => `<option value="${r}" ${(a ? a.role : (portalName === 'coaching' ? 'desk' : 'writer')) === r ? 'selected' : ''}>${ROLE_NAMES[r]}</option>`).join('')}</select></label>
       <label class="f"><span>&nbsp;</span><span class="check"><input type="checkbox" name="active" ${!a || a.active ? 'checked' : ''}> Can sign in</span></label></div>
       <label class="f"><span>${a ? 'New password (leave empty to keep)' : 'Password'}</span><input class="t" name="password" type="password" autocomplete="new-password" ${a ? '' : 'required'} minlength="8"><small>At least 8 characters. Share it with them privately; they can change it under My account.</small></label>
     </div>${dlgButtons(a ? 'Save' : 'Add admin')}`,
@@ -658,7 +711,7 @@ function viewAccount() {
 const LABELS = ['ক', 'খ', 'গ', 'ঘ'], KEYS = ['A', 'B', 'C', 'D'];
 const bn = v => String(v).replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
 // The Word template is built into this page, so the download works even if word-template.docx isn't on the site.
-const WORD_TEMPLATE_B64 = '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';
+const WORD_TEMPLATE_B64 = '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';
 function downloadWordTemplate() {
   const bin = Uint8Array.from(atob(WORD_TEMPLATE_B64), c => c.charCodeAt(0));
   const a = document.createElement('a');
@@ -716,7 +769,7 @@ function examOptions(selected, withBlank = true) {
 const pageError = e => { if (e.code !== 'NOT_SIGNED_IN') $('#main').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; };
 Object.assign(ERR, {
   Q_EMPTY: 'Write the question (or add a picture).', Q_OPTIONS: 'Fill in all four options.', Q_ANSWER: 'Choose the correct answer.',
-  Q_TOO_MANY: 'An A5 OMR sheet holds at most 60 questions.', Q_NOT_FOUND: 'That question no longer exists. Reload the page.',
+  Q_TOO_MANY: 'An A5 OMR sheet holds at most 60 MCQ questions.', Q_PARTS: 'Write at least one part (ক) of the creative question.', Q_MARKS: 'Give marks (more than 0) for the question or each part.', Q_NOT_FOUND: 'That question no longer exists. Reload the page.',
   HAS_RESULTS: 'Students have already submitted this exam, so questions can’t be added, removed or reordered (their saved answers would no longer match). You can still edit text and answers.',
   BAD_COUNT: 'Enter a number in the allowed range.', SITE_URL_MISSING: 'Set your website address in Settings first. The QR codes point there.',
   BAD_SITE_URL: 'Website address must start with https://', BOOK_NOT_FOUND: 'No book with this ID.', EXAM_NOT_FOUND: 'Exam not found.',
@@ -764,34 +817,59 @@ async function viewQuestions(examId) {
   renderQuestions();
 }
 
+const QTYPE_NAMES = { MCQ: 'MCQ', CQ: 'Creative (CQ)', SQ: 'Short (SQ)', MATH: 'Math problem' };
+const QTYPE_BN = { MCQ: 'বহুনির্বাচনী', CQ: 'সৃজনশীল', SQ: 'সংক্ষিপ্ত', MATH: 'গাণিতিক সমস্যা' };
+const CQ_LABELS = ['ক', 'খ', 'গ', 'ঘ', 'ঙ', 'চ'];
+const qMarks = q => q.type === 'CQ' ? q.parts.reduce((a, p) => a + Number(p.marks || 0), 0) : Number(q.marks || 0);
+// Each type is numbered on its own: MCQ 1–20, CQ 1–3 …
+function typeNumbers(list) { const n = {}; return list.map(q => (n[q.type || 'MCQ'] = (n[q.type || 'MCQ'] || 0) + 1)); }
+function questionBody(q) {
+  const t = q.type || 'MCQ';
+  if (t === 'MCQ') return `<div class="qt">${rich(q.question)}</div>${imgTag(q.image)}
+    <div class="qopts">${q.options.map((o, j) => `<div class="${KEYS[j] === q.answer ? 'right' : ''}">(${LABELS[j]}) ${rich(o)}${KEYS[j] === q.answer ? ' ✓' : ''}</div>`).join('')}</div>`;
+  if (t === 'CQ') return `<div class="qt">${rich(q.question)}</div>${imgTag(q.image)}
+    <ol class="cqparts">${q.parts.map((p, j) => `<li><b>${CQ_LABELS[j]}.</b><span>${rich(p.text)}</span><em>${bn(p.marks)}</em></li>`).join('')}</ol>`;
+  return `<div class="qt">${rich(q.question)} <em class="mk">[${bn(q.marks)}]</em></div>${imgTag(q.image)}`;
+}
+
 function renderQuestions() {
-  const d = qData, locked = d.attempts > 0;
+  const d = qData, hasResults = d.attempts > 0;
+  const nums = typeNumbers(d.questions);
+  const count = t => d.questions.filter(q => (q.type || 'MCQ') === t).length;
+  const written = d.questions.filter(q => q.type && q.type !== 'MCQ');
+  const summary = ['MCQ', 'CQ', 'SQ', 'MATH'].filter(count).map(t => `${count(t)} ${QTYPE_NAMES[t]}`).join(' · ') || 'no questions';
   $('#qarea').innerHTML = `
     <div class="card">
       <div class="row" style="margin-bottom:.4rem">
-        <div><h2>${esc(d.exam.name)}</h2><span class="muted"><code>${esc(d.exam.id)}</code> · ${esc(d.exam.titleName)} › ${esc(d.exam.subjectName)} · ${d.questions.length} question${d.questions.length === 1 ? '' : 's'} · ${d.exam.open ? 'open to students' : 'hidden from students'}</span></div>
+        <div><h2>${esc(d.exam.name)}</h2><span class="muted"><code>${esc(d.exam.id)}</code> · ${esc(d.exam.titleName)} › ${esc(d.exam.subjectName)} · ${summary}${written.length ? ` · written ${written.reduce((a, q) => a + qMarks(q), 0)} marks` : ''} · ${d.exam.open ? 'open to students' : 'hidden from students'}</span></div>
         <span class="spacer"></span>
         <a class="btn ghost sm" href="index.html?e=${encodeURIComponent(d.exam.id)}" target="_blank" rel="noopener" title="Opens the portal; use an admin preview book">Preview in portal</a>
-        <a class="btn ghost sm" href="#/import/${encodeURIComponent(d.exam.id)}" ${locked ? 'aria-disabled="true" style="pointer-events:none;opacity:.45"' : ''}>Upload Word file</a>
-        <button class="btn sm" id="addQ" ${locked ? 'disabled' : ''}>+ Add question</button>
+        ${d.questions.length ? `<button class="btn ghost sm" id="mkSlidesEx">Make slides</button>` : ''}
+        ${can('bank.editall') && d.questions.length ? `<button class="btn ghost sm" id="toBank">Copy to question bank…</button>` : ''}
+        <a class="btn ghost sm" href="#/import/${encodeURIComponent(d.exam.id)}">Upload Word file</a>
+        <button class="btn sm" id="addQ">+ Add question</button>
       </div>
-      ${locked ? `<p class="note">${d.attempts} student result(s) exist for this exam. You can edit questions and answers (scores are recalculated automatically when an answer changes), but you can't add, remove or reorder questions.</p>` : ''}
-      <div id="qlist">${d.questions.length ? d.questions.map((q, i) => `
-        <div class="qcard">
-          <span class="qnum">${bn(i + 1)}.</span>
-          <div class="qbody"><div class="qt">${rich(q.question)}</div>${imgTag(q.image)}
-            <div class="qopts">${q.options.map((o, j) => `<div class="${KEYS[j] === q.answer ? 'right' : ''}">(${LABELS[j]}) ${rich(o)}${KEYS[j] === q.answer ? ' ✓' : ''}</div>`).join('')}</div></div>
+      ${hasResults ? `<p class="note">${d.attempts} student result(s) exist for this exam. MCQ questions can be edited (scores are recalculated when an answer changes) but not added, removed or reordered. Written questions (CQ, SQ, math) can still be added and changed freely.</p>` : ''}
+      <div id="qlist">${d.questions.length ? d.questions.map((q, i) => {
+        const t = q.type || 'MCQ', lockedQ = hasResults && t === 'MCQ';
+        const nb = d.questions[i + 1], pv = d.questions[i - 1];
+        const canMove = other => other && !(hasResults && t === 'MCQ' && (other.type || 'MCQ') === 'MCQ');
+        return `<div class="qcard">
+          <span class="qnum">${bn(nums[i])}.<span class="qtype t-${t}">${t === 'MATH' ? 'Math' : t}</span></span>
+          <div class="qbody">${questionBody(q)}</div>
           <div class="qtools">
             <button class="btn ghost sm" data-edit="${i}">Edit</button>
-            ${locked ? '' : `<button class="btn ghost sm" data-up="${i}" ${i ? '' : 'disabled'} aria-label="Move up">↑</button>
-            <button class="btn ghost sm" data-down="${i}" ${i < d.questions.length - 1 ? '' : 'disabled'} aria-label="Move down">↓</button>
-            <button class="btn danger sm" data-del="${i}">Delete</button>`}
-          </div>
-        </div>`).join('') : '<p class="muted">No questions yet.</p>'}</div>
+            <button class="btn ghost sm" data-up="${i}" ${canMove(pv) ? '' : 'disabled'} aria-label="Move up">↑</button>
+            <button class="btn ghost sm" data-down="${i}" ${canMove(nb) ? '' : 'disabled'} aria-label="Move down">↓</button>
+            ${lockedQ ? '' : `<button class="btn danger sm" data-del="${i}">Delete</button>`}
+          </div></div>`;
+      }).join('') : '<p class="muted">No questions yet.</p>'}</div>
     </div>`;
   typeset($('#qlist'));
   const ex = d.exam.id;
-  if ($('#addQ')) $('#addQ').onclick = () => questionDialog(null);
+  $('#addQ').onclick = () => questionDialog(null);
+  if ($('#toBank')) $('#toBank').onclick = () => copyExamToBank(ex);
+  if ($('#mkSlidesEx')) $('#mkSlidesEx').onclick = () => makeSlides(d.questions, d.exam.id + ' ' + d.exam.name);
   document.querySelectorAll('[data-edit]').forEach(b => { b.onclick = () => questionDialog(+b.dataset.edit); });
   document.querySelectorAll('[data-up],[data-down]').forEach(b => {
     b.onclick = async () => {
@@ -802,7 +880,7 @@ function renderQuestions() {
   document.querySelectorAll('[data-del]').forEach(b => {
     b.onclick = async () => {
       const i = +b.dataset.del;
-      if (!confirm(`Delete question ${i + 1}? The questions after it move up one number.`)) return;
+      if (!confirm(`Delete this question? The questions after it move up.`)) return;
       try { qData = await api('qDelete', { examId: ex, no: i + 1 }); renderQuestions(); toast('Question deleted'); cat = null; } catch (e) { toast(errText(e)); }
     };
   });
@@ -812,37 +890,61 @@ const MATH_SNIPPETS = [
   ['Inline math', '\\(', '\\)'], ['Own line', '\\[', '\\]'], ['a/b', '\\frac{', '}{}'], ['x²', '^{', '}'], ['x₁', '_{', '}'],
   ['√', '\\sqrt{', '}'], ['×', '\\times ', ''], ['θ', '\\theta ', ''], ['Δ', '\\Delta ', ''], ['π', '\\pi ', ''], ['unit', '\\mathrm{', '}'],
 ];
+const CQ_DEFAULT_MARKS = [1, 2, 3, 4];
 // local = { q, title, examId, onSave(data) } edits a question that isn't saved yet (Word import).
 function questionDialog(index, local) {
-  const q = local ? local.q : index === null ? { question: '', image: '', options: ['', '', '', ''], answer: '', solution: '', solutionImage: '' } : qData.questions[index];
+  const blank = { type: 'MCQ', question: '', image: '', options: ['', '', '', ''], answer: '', solution: '', solutionImage: '', marks: '', parts: [] };
+  const q = Object.assign({}, blank, local ? local.q : index === null ? {} : qData.questions[index]);
+  q.type = q.type || 'MCQ';
+  const parts = [0, 1, 2, 3].map(j => Object.assign({ text: '', marks: CQ_DEFAULT_MARKS[j], solution: '' }, q.parts[j] || {}));
   const no = index === null ? '' : index + 1;
   const examForPics = local ? local.examId : qData.exam.id;
-  const picBtn = (field, label) => `<button type="button" class="btn ghost sm" data-pic="${field}" ${cat && cat.uploads ? '' : 'disabled title="Set up picture upload in Settings first"'}>${label}</button>`;
-  dialog(`<h2>${local ? local.title : index === null ? 'Add a question' : 'Edit question ' + (index + 1)}</h2>
+  const typeLocked = !local && index !== null && qData.attempts > 0 && q.type === 'MCQ';
+  const picBtn = (field, label) => `<button type="button" class="btn ghost sm" data-pic="${field}" ${(cat && cat.uploads) || bankUploads ? '' : 'disabled title="Set up picture upload in Settings first"'}>${label}</button>`;
+  dialog(`<h2>${local ? local.title : index === null ? 'Add a question' : 'Edit question'}</h2>
     <div class="editor">
       <div class="stack">
+        <div class="typepick" role="radiogroup" aria-label="Question type">${Object.keys(QTYPE_NAMES).map(t => `<label><input type="radio" name="qtype" value="${t}" ${q.type === t ? 'checked' : ''} ${typeLocked && t !== 'MCQ' ? 'disabled' : ''} ${!local && index === null && qData.attempts > 0 && t === 'MCQ' ? 'disabled' : ''}><span>${QTYPE_NAMES[t]}</span></label>`).join('')}</div>
         <div><span class="muted" style="font-size:.85rem">Math: put it between <code>\\(</code> and <code>\\)</code>. Buttons insert at the cursor.</span>
-          <div class="mathbar">${MATH_SNIPPETS.map((m, i) => `<button type="button" data-snip="${i}">${esc(m[0])}</button>`).join('')}<button type="button" data-pic="@inline" ${cat && cat.uploads ? '' : 'disabled title="Set up picture upload in Settings first"'}>Picture in text…</button></div></div>
-        <label class="f"><span>Question</span><textarea class="t" name="question" rows="3">${esc(q.question)}</textarea></label>
-        <div><label class="f"><span>Picture under the question (optional)</span><input class="t" name="image" value="${esc(q.image)}" placeholder="phy02-q5.png"></label>
-          <div class="row" style="margin-top:.35rem">${picBtn('image', 'Upload picture…')}<small class="muted">${cat && cat.uploads ? 'Or type a file name from your images folder.' : 'Picture upload isn’t set up yet (Settings). You can type a file name from your images folder.'}</small></div></div>
-        ${LABELS.map((l, j) => `<label class="f"><span>Option (${l})</span><input class="t" name="o${j}" value="${esc(q.options[j])}"></label>`).join('')}
-        <div><span style="font-weight:600;font-size:.88rem;display:block;margin-bottom:.3rem">Correct answer</span>
-          <div class="ansrow" role="radiogroup" aria-label="Correct answer">${LABELS.map((l, j) => `<label><input type="radio" name="answer" value="${KEYS[j]}" ${q.answer === KEYS[j] ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
-        <label class="f"><span>Solution / explanation</span><textarea class="t" name="solution" rows="5">${esc(q.solution)}</textarea></label>
+          <div class="mathbar">${MATH_SNIPPETS.map((m, i) => `<button type="button" data-snip="${i}">${esc(m[0])}</button>`).join('')}<button type="button" data-pic="@inline" ${(cat && cat.uploads) || bankUploads ? '' : 'disabled title="Set up picture upload in Settings first"'}>Picture in text…</button></div></div>
+        <label class="f"><span id="qLabel">Question</span><textarea class="t" name="question" rows="3">${esc(q.question)}</textarea></label>
+        <div><label class="f"><span>Picture (optional)</span><input class="t" name="image" value="${esc(q.image)}" placeholder="phy02-q5.png"></label>
+          <div class="row" style="margin-top:.35rem">${picBtn('image', 'Upload picture…')}<small class="muted">${(cat && cat.uploads) || bankUploads ? 'Or type a file name from your images folder.' : 'Picture upload isn’t set up yet (Settings).'}</small></div></div>
+        <div class="tsec" data-for="MCQ">
+          ${LABELS.map((l, j) => `<label class="f"><span>Option (${l})</span><input class="t" name="o${j}" value="${esc(q.options[j])}"></label>`).join('')}
+          <div style="margin-top:.8rem"><span style="font-weight:600;font-size:.88rem;display:block;margin-bottom:.3rem">Correct answer</span>
+            <div class="ansrow" role="radiogroup" aria-label="Correct answer">${LABELS.map((l, j) => `<label><input type="radio" name="answer" value="${KEYS[j]}" ${q.answer === KEYS[j] ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
+        </div>
+        <div class="tsec stack" data-for="CQ">
+          ${parts.map((p, j) => `<fieldset class="cqpart"><legend>Part ${CQ_LABELS[j]}</legend>
+            <div class="row" style="align-items:flex-start"><textarea class="t" name="p${j}" rows="2" style="flex:1" placeholder="${['জ্ঞানমূলক (knowledge)', 'অনুধাবনমূলক (comprehension)', 'প্রয়োগমূলক (application)', 'উচ্চতর দক্ষতা (higher ability)'][j]}">${esc(p.text)}</textarea>
+              <label class="f" style="width:5.5rem"><span style="font-size:.8rem">Marks</span><input class="t" name="pm${j}" type="number" min="0" step="0.5" value="${esc(String(p.marks))}"></label></div>
+            <textarea class="t" name="ps${j}" rows="2" placeholder="Answer / solution for this part (optional)" style="margin-top:.4rem">${esc(p.solution)}</textarea></fieldset>`).join('')}
+          <small class="muted">Leave a part empty if this question has fewer parts.</small>
+        </div>
+        <div class="tsec" data-for="SQ MATH"><label class="f" style="max-width:8rem"><span>Marks</span><input class="t" name="marks" type="number" min="0" step="0.5" value="${esc(String(q.marks || ''))}"></label></div>
+        <label class="f"><span id="solLabel">Solution / explanation</span><textarea class="t" name="solution" rows="5">${esc(q.solution)}</textarea></label>
         <div><label class="f"><span>Picture at the end of the solution (optional)</span><input class="t" name="solutionImage" value="${esc(q.solutionImage)}"></label>
           <div class="row" style="margin-top:.35rem">${picBtn('solutionImage', 'Upload picture…')}</div></div>
+        ${local && local.bank ? `<div class="grid2"><label class="f"><span>Difficulty (optional)</span><select class="t" name="diff"><option value="">—</option>${Object.keys(DIFF_NAMES).map(k => `<option value="${k}" ${q.difficulty === k ? 'selected' : ''}>${DIFF_NAMES[k]}</option>`).join('')}</select></label>
+          <label class="f"><span>Source (optional)</span><input class="t" name="source" value="${esc(q.source || '')}" placeholder="e.g. Dhaka Board 2023"></label></div>` : ''}
         <input type="file" accept="image/*" id="picfile" hidden>
       </div>
       <div><div class="preview" id="pv" aria-live="polite"></div></div>
     </div>${dlgButtons(local ? 'Done' : index === null ? 'Add question' : 'Save')}`,
   async (v, f) => {
-    const data = { question: f.question.value, image: f.image.value, options: [0, 1, 2, 3].map(j => f['o' + j].value), answer: (f.querySelector('[name=answer]:checked') || {}).value || '', solution: f.solution.value, solutionImage: f.solutionImage.value };
+    const type = (f.querySelector('[name=qtype]:checked') || {}).value || 'MCQ';
+    const data = { type, question: f.question.value, image: f.image.value, solution: f.solution.value, solutionImage: f.solutionImage.value, options: ['', '', '', ''], answer: '', marks: '', parts: [] };
+    if (type === 'MCQ') { data.options = [0, 1, 2, 3].map(j => f['o' + j].value); data.answer = (f.querySelector('[name=answer]:checked') || {}).value || ''; }
+    else if (type === 'CQ') data.parts = [0, 1, 2, 3].map(j => ({ text: f['p' + j].value.trim(), marks: Number(f['pm' + j].value), solution: f['ps' + j].value })).filter(p => p.text);
+    else data.marks = Number(f.marks.value);
+    if (f.diff) { data.difficulty = f.diff.value; data.source = f.source.value; }
     if (local) {
       if (!data.question.trim() && !data.image.trim()) throw { code: 'Q_EMPTY' };
-      if (data.options.some(o => !o.trim())) throw { code: 'Q_OPTIONS' };
-      if (!data.answer) throw { code: 'Q_ANSWER' };
-      local.onSave(data); return;
+      if (type === 'MCQ') { if (data.options.some(o => !o.trim())) throw { code: 'Q_OPTIONS' }; if (!data.answer) throw { code: 'Q_ANSWER' }; }
+      else if (type === 'CQ') { if (!data.parts.length) throw { code: 'Q_PARTS' }; if (data.parts.some(p => !(p.marks > 0))) throw { code: 'Q_MARKS' }; }
+      else if (!(data.marks > 0)) throw { code: 'Q_MARKS' };
+      await local.onSave(data); return;
     }
     qData = await api('qSave', { examId: qData.exam.id, no, q: data });
     renderQuestions(); cat = null;
@@ -851,6 +953,13 @@ function questionDialog(index, local) {
   f => {
     $('#dlg').classList.add('wide');
     $('#dlg').addEventListener('close', () => $('#dlg').classList.remove('wide'), { once: true });
+    const typeNow = () => (f.querySelector('[name=qtype]:checked') || {}).value || 'MCQ';
+    const showType = () => {
+      const t = typeNow();
+      f.querySelectorAll('.tsec').forEach(sec => { sec.hidden = !sec.dataset.for.split(' ').includes(t); });
+      $('#qLabel').textContent = t === 'CQ' ? 'Stem (উদ্দীপক)' : 'Question';
+      $('#solLabel').textContent = t === 'CQ' ? 'General note or solution (optional)' : 'Solution / explanation';
+    };
     let lastField = f.question;
     f.addEventListener('focusin', e => { if (e.target.matches('textarea, input.t')) lastField = e.target; });
     f.querySelectorAll('[data-snip]').forEach(b => b.onclick = () => {
@@ -864,16 +973,19 @@ function questionDialog(index, local) {
     const update = () => {
       clearTimeout(t);
       t = setTimeout(() => {
-        const ans = (f.querySelector('[name=answer]:checked') || {}).value;
-        $('#pv').innerHTML = `<div class="lbl">Preview: what students see</div>
-          <div>${rich(f.question.value) || '<span class="muted">Question…</span>'}</div>${imgTag(f.image.value)}
-          <div style="margin-top:.5rem">${[0, 1, 2, 3].map(j => `<div class="po ${ans === KEYS[j] ? 'right' : ''}"><b>(${LABELS[j]})</b><span>${rich(f['o' + j].value)}</span></div>`).join('')}</div>
-          ${f.solution.value || f.solutionImage.value ? `<div class="sol"><b>সমাধান</b><div>${rich(f.solution.value)}</div>${imgTag(f.solutionImage.value)}</div>` : ''}`;
+        const type = typeNow(), ans = (f.querySelector('[name=answer]:checked') || {}).value;
+        let body = '';
+        if (type === 'MCQ') body = `<div style="margin-top:.5rem">${[0, 1, 2, 3].map(j => `<div class="po ${ans === KEYS[j] ? 'right' : ''}"><b>(${LABELS[j]})</b><span>${rich(f['o' + j].value)}</span></div>`).join('')}</div>`;
+        else if (type === 'CQ') body = `<ol class="cqparts">${[0, 1, 2, 3].filter(j => f['p' + j].value.trim()).map(j => `<li><b>${CQ_LABELS[j]}.</b><span>${rich(f['p' + j].value)}</span><em>${bn(f['pm' + j].value || 0)}</em></li>`).join('')}</ol>`;
+        const solParts = type === 'CQ' ? [0, 1, 2, 3].filter(j => f['p' + j].value.trim() && f['ps' + j].value.trim()).map(j => `<div><b>${CQ_LABELS[j]}.</b> ${rich(f['ps' + j].value)}</div>`).join('') : '';
+        $('#pv').innerHTML = `<div class="lbl">Preview: ${QTYPE_NAMES[type]}</div>
+          <div>${rich(f.question.value) || '<span class="muted">' + (type === 'CQ' ? 'Stem…' : 'Question…') + '</span>'}${type === 'SQ' || type === 'MATH' ? ` <em class="mk">[${bn(f.marks.value || 0)}]</em>` : ''}</div>${imgTag(f.image.value)}${body}
+          ${f.solution.value || f.solutionImage.value || solParts ? `<div class="sol"><b>সমাধান</b>${solParts}<div>${rich(f.solution.value)}</div>${imgTag(f.solutionImage.value)}</div>` : ''}`;
         typeset($('#pv'));
       }, 150);
     };
+    f.querySelectorAll('[name=qtype]').forEach(r => r.onchange = () => { showType(); update(); });
     f.addEventListener('input', update); f.addEventListener('change', update);
-    // picture upload buttons
     let picTarget = null;
     f.querySelectorAll('[data-pic]').forEach(b => b.onclick = () => { picTarget = b.dataset.pic === '@inline' ? { inline: lastField } : { field: b.dataset.pic }; $('#picfile').click(); });
     $('#picfile').onchange = async e => {
@@ -890,7 +1002,7 @@ function questionDialog(index, local) {
         update(); toast('Picture uploaded');
       } catch (err) { box.hidden = false; box.textContent = errText(err); }
     };
-    update();
+    showType(); update();
   });
 }
 
@@ -1126,21 +1238,21 @@ async function viewSettings() {
   try { const r = await api('settingsGet'); s = r.settings; gh = r.github; } catch (e) { return pageError(e); }
   $('#main').innerHTML = `<h1>Settings</h1><p class="lede">These apply to the whole site.</p>
     <form class="card stack" id="sf" style="max-width:40rem">
-      <label class="f"><span>Website address</span><input class="t" name="site" value="${esc(s.siteUrl)}" placeholder="https://exam.yourdomain.com/"><small>Book QR codes point here. Set it before making book IDs; printed QR codes can't change later.</small></label>
-      <label class="f"><span>Classes</span><input class="t" name="classes" value="${esc(s.classList || '')}" placeholder="SSC 27, SSC 28, HSC 27, HSC 28"><small>Separated by commas. Students choose from this list, and their ID comes from it: SSC 27 → S27001, HSC 28 → H28001. Add next year's classes when admission opens.</small></label>
+      <label class="f" ${portalIs('exam') ? '' : 'hidden'}><span>Website address</span><input class="t" name="site" value="${esc(s.siteUrl)}" placeholder="https://exam.yourdomain.com/"><small>Book QR codes point here. Set it before making book IDs; printed QR codes can't change later.</small></label>
+      <div class="stack" ${portalIs('coaching') ? '' : 'hidden'}><label class="f"><span>Classes</span><input class="t" name="classes" value="${esc(s.classList || '')}" placeholder="SSC 27, SSC 28, HSC 27, HSC 28"><small>Separated by commas. Students choose from this list, and their ID comes from it: SSC 27 → S27001, HSC 28 → H28001. Add next year's classes when admission opens.</small></label>
       <label class="f"><span>Centre address (printed on receipts and ID cards)</span><input class="t" name="caddr" value="${esc(s.centreAddress || '')}" maxlength="200"></label>
       <div class="grid2"><label class="f"><span>Centre phone</span><input class="t" name="cphone" value="${esc(s.centrePhone || '')}" maxlength="60"></label>
-        <label class="f"><span>Receipt number letters</span><input class="t" name="rprefix" value="${esc(s.receiptPrefix || 'GP')}" maxlength="6" style="text-transform:uppercase"><small>Receipts look like ${esc(s.receiptPrefix || 'GP')}26-00001.</small></label></div>
-      <div class="grid2">
+        <label class="f"><span>Receipt number letters</span><input class="t" name="rprefix" value="${esc(s.receiptPrefix || 'GP')}" maxlength="6" style="text-transform:uppercase"><small>Receipts look like ${esc(s.receiptPrefix || 'GP')}26-00001.</small></label></div></div>
+      <div class="grid2" ${portalIs('exam') ? '' : 'hidden'}>
         <label class="f"><span>Default marks per correct answer</span><input class="t" name="mc" type="number" step="0.01" min="0.01" value="${s.markCorrect}"></label>
         <label class="f"><span>Default marks per wrong answer</span><input class="t" name="mw" type="number" step="0.01" max="0" value="${s.markWrong}"><small>e.g. -0.25. Exams can override both.</small></label>
       </div>
-      <label class="check"><input type="checkbox" name="pub" ${s.published ? 'checked' : ''}> Students can see the top list</label>
-      <label class="f" style="max-width:12rem"><span>Top list size</span><input class="t" name="size" type="number" min="1" max="1000" value="${s.size}"></label>
+      <label class="check" ${portalIs('exam') ? '' : 'hidden'}><input type="checkbox" name="pub" ${s.published ? 'checked' : ''}> Students can see the top list</label>
+      <label class="f" style="max-width:12rem" ${portalIs('exam') ? '' : 'hidden'}><span>Top list size</span><input class="t" name="size" type="number" min="1" max="1000" value="${s.size}"></label>
       <p class="alert err" hidden></p>
       <div><button class="btn">Save settings</button></div>
     </form>
-    <div class="card stack" style="max-width:40rem;margin-top:1rem">
+    <div class="card stack" style="max-width:40rem;margin-top:1rem" ${portalIs('exam') ? '' : 'hidden'}>
       <h2>Recalculate all scores</h2>
       <p class="muted" style="margin:0">Re-marks every saved submission with the current answer keys and marking. Use it after changing marking. (Changing a single answer already recalculates that exam.)</p>
       <div><button class="btn ghost" id="rc">Recalculate now</button></div>
@@ -1270,6 +1382,7 @@ async function viewImport(examId) {
           <li>Then <code>সঠিক উত্তর: (খ)</code> on its own line.</li>
           <li>Then <code>সমাধান / ব্যাখ্যা:</code> and the solution, up to the next question.</li>
           <li>Equations with Word's <b>Insert › Equation</b>; pictures pasted straight in. Save as <b>.docx</b>.</li>
+          <li><b>Written questions:</b> put a heading line <code>সৃজনশীল প্রশ্ন</code> (CQ), <code>সংক্ষিপ্ত প্রশ্ন</code> (SQ) or <code>গাণিতিক সমস্যা</code> (math) before them, and <code>বহুনির্বাচনী প্রশ্ন</code> to go back to MCQ. In CQ: the numbered stem, then parts <code>ক.</code> <code>খ.</code> <code>গ.</code> <code>ঘ.</code> with marks like <code>[২]</code> at the end (default ১, ২, ৩, ৪), and <code>উত্তর:</code> after a part for its answer. In SQ/math: marks like <code>[৫]</code> at the end of the question, then <code>সমাধান:</code>.</li>
         </ul>
         <p style="margin:.5rem 0 0"><button class="btn ghost sm" data-template>Download the Word template</button></p></details>` : ''}
       ${ex && ex.attempts ? '<p class="alert">This exam already has student results, so questions can’t be added or replaced. Make a new exam instead.</p>' : ''}
@@ -1297,16 +1410,22 @@ async function viewImport(examId) {
 
 function picRefs(q) {
   const refs = new Set();
-  [q.question, q.solution, ...q.options].forEach(t => String(t || '').replace(/\[img:\s*(@\d+)\s*\]/g, (m, r) => refs.add(r)));
+  [q.question, q.solution, ...(q.options || []), ...(q.parts || []).flatMap(p => [p.text, p.solution])].forEach(t => String(t || '').replace(/\[img:\s*(@\d+)\s*\]/g, (m, r) => refs.add(r)));
   return [...refs];
 }
 
 function checkQ(q) {
   const p = [];
-  if (!q.question.trim()) p.push('No question text');
-  const miss = q.options.map((o, j) => o.trim() ? '' : LABELS[j]).filter(Boolean);
-  if (miss.length) p.push('Missing option ' + miss.join(', '));
-  if (!q.answer) p.push('No correct answer');
+  const t = q.type || 'MCQ';
+  if (!q.question.trim()) p.push(t === 'CQ' ? 'No stem (উদ্দীপক)' : 'No question text');
+  if (t === 'MCQ') {
+    const miss = q.options.map((o, j) => o.trim() ? '' : LABELS[j]).filter(Boolean);
+    if (miss.length) p.push('Missing option ' + miss.join(', '));
+    if (!q.answer) p.push('No correct answer');
+  } else if (t === 'CQ') {
+    if (!q.parts.length) p.push('No parts (ক, খ …) found');
+    if (q.parts.some(x => !(x.marks > 0))) p.push('A part has no marks');
+  } else if (!(q.marks > 0)) p.push('No marks: add them like [৫] at the end of the question');
   picRefs(q).forEach(r => { const im = imp.images[+r.slice(1)]; if (!im || !im.supported) p.push('Picture in a format browsers can’t show (' + (im ? im.ext.toUpperCase() : '?') + '). Replace it with PNG/JPG in Word, or remove it.'); });
   return p;
 }
@@ -1317,7 +1436,7 @@ function renderImport(ex) {
   const bad = qs.filter(q => q.problems.length).length;
   const pics = new Set(); qs.forEach(q => picRefs(q).forEach(r => pics.add(r)));
   const existing = ex.questions;
-  const tooMany = existing + qs.length > 60;
+  const tooMany = !ex.isChapter && (ex.questions || 0) + qs.filter(q => (q.type || 'MCQ') === 'MCQ').length > 60;
   $('#iarea').innerHTML = `
     <div class="card" style="margin-top:1rem">
       <div class="row" style="margin-bottom:.6rem">
@@ -1329,26 +1448,26 @@ function renderImport(ex) {
       ${qs.length ? `<div class="stack" style="margin-top:.6rem">
         ${existing ? `<div class="row"><label class="check"><input type="radio" name="mode" value="append" checked> Add after the ${existing} existing question(s)</label>
           <label class="check"><input type="radio" name="mode" value="replace"> Replace the existing questions</label></div>` : ''}
-        ${tooMany ? `<p class="alert">An exam can have at most 60 questions (one A5 OMR sheet). ${existing ? 'Choose "Replace", or ' : ''}remove some questions.</p>` : ''}
+        ${tooMany ? `<p class="alert">An exam can have at most 60 MCQ questions (one A5 OMR sheet). ${existing ? 'Choose "Replace", or ' : ''}remove some questions.</p>` : ''}
         <div class="row"><button class="btn" id="save" ${bad ? 'disabled' : ''}>Save ${qs.length} question${qs.length === 1 ? '' : 's'} to ${esc(ex.id)}</button><span class="muted" id="prog" aria-live="polite">${bad ? 'Fix or remove the questions marked in red first.' : ''}</span></div>
       </div>` : ''}
     </div>
-    <div class="card" style="margin-top:1rem" id="ilist">${qs.map((q, i) => `
+    <div class="card" style="margin-top:1rem" id="ilist">${(nums => qs.map((q, i) => `
       <div class="qcard" style="${q.problems.length ? 'box-shadow:inset 3px 0 0 var(--bad);padding-left:.6rem' : ''}">
-        <span class="qnum">${bn(i + 1)}.</span>
+        <span class="qnum">${bn(nums[i])}.<span class="qtype t-${q.type || 'MCQ'}">${q.type === 'MATH' ? 'Math' : q.type || 'MCQ'}</span></span>
         <div class="qbody">
           ${q.problems.length ? `<p class="alert" style="margin:0 0 .4rem;font-size:.88rem">${q.problems.map(esc).join(' · ')}</p>` : ''}
-          <div class="qt">${rich(q.question)}</div>
-          <div class="qopts">${q.options.map((o, j) => `<div class="${KEYS[j] === q.answer ? 'right' : ''}">(${LABELS[j]}) ${rich(o) || '<span class="imgmiss">missing</span>'}${KEYS[j] === q.answer ? ' ✓' : ''}</div>`).join('')}</div>
+          ${questionBody(q)}
+          ${q.type === 'CQ' && q.parts.some(x => x.solution) ? `<details style="margin-top:.4rem"><summary class="muted" style="cursor:pointer">Part answers</summary><div style="margin-top:.3rem">${q.parts.map((x, j) => x.solution ? `<div><b>${CQ_LABELS[j]}.</b> ${rich(x.solution)}</div>` : '').join('')}</div></details>` : ''}
           ${q.solution ? `<details style="margin-top:.4rem"><summary class="muted" style="cursor:pointer">Solution</summary><div style="margin-top:.3rem">${rich(q.solution)}</div></details>` : '<p class="muted" style="margin:.3rem 0 0;font-size:.85rem">No solution</p>'}
         </div>
         <div class="qtools"><button class="btn ghost sm" data-fix="${i}">Edit</button><button class="btn danger sm" data-rm="${i}">Remove</button></div>
-      </div>`).join('')}</div>`;
+      </div>`).join(''))(typeNumbers(qs))}</div>`;
   typeset($('#ilist'));
   document.querySelectorAll('[data-fix]').forEach(b => b.onclick = () => {
     const i = +b.dataset.fix, q = qs[i];
     questionDialog(null, { q: Object.assign({ image: '', solutionImage: '' }, q), title: 'Fix question ' + (i + 1), examId: ex.id,
-      onSave: data => { Object.assign(q, data); renderImport(ex); toast('Updated. Remember to save at the top.'); } });
+      bank: ex.isChapter, onSave: data => { Object.assign(q, data); renderImport(ex); toast('Updated. Remember to save at the top.'); } });
   });
   document.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { qs.splice(+b.dataset.rm, 1); renderImport(ex); });
   if ($('#save')) $('#save').onclick = () => saveImport(ex);
@@ -1358,7 +1477,7 @@ async function saveImport(ex) {
   const qs = imp.questions;
   const mode = (document.querySelector('[name=mode]:checked') || {}).value || 'append';
   if (mode === 'replace' && !confirm(`Replace the ${ex.questions} existing question(s) of ${ex.id} with these ${qs.length}?`)) return;
-  if ((mode === 'replace' ? 0 : ex.questions) + qs.length > 60) { toast(ERR.Q_TOO_MANY); return; }
+  if (!ex.isChapter && (mode === 'replace' ? 0 : ex.questions) + qs.filter(q => (q.type || 'MCQ') === 'MCQ').length > 60) { toast(ERR.Q_TOO_MANY); return; }
   const btn = $('#save'), prog = $('#prog');
   btn.disabled = true;
   try {
@@ -1368,15 +1487,22 @@ async function saveImport(ex) {
     let n = 0;
     for (const r of used) {
       n++;
-      if (!cat.uploads) break;
+      if (!((cat && cat.uploads) || bankUploads)) break;
       prog.textContent = `Uploading picture ${n} of ${used.size}…`;
       const im = imp.images[+r.slice(1)];
       names[r] = await uploadPicture(im.blob, ex.id, 'w' + Date.now().toString(36) + n);
     }
     const fix = t => String(t || '').replace(/\n?\[img:\s*(@\d+)\s*\]\n?/g, (m, r) => names[r] ? '\n[img:' + names[r] + ']\n' : '').replace(/^\n+|\n+$/g, '');
-    const out = qs.map(q => ({ question: fix(q.question), image: q.image || '', options: q.options.map(fix), answer: q.answer, solution: fix(q.solution), solutionImage: q.solutionImage || '' }));
+    const out = qs.map(q => ({ type: q.type || 'MCQ', question: fix(q.question), image: q.image || '', options: (q.options || ['', '', '', '']).map(fix), answer: q.answer || '',
+      marks: q.marks || '', parts: (q.parts || []).map(x => ({ text: fix(x.text), marks: x.marks, solution: fix(x.solution) })), solution: fix(q.solution), solutionImage: q.solutionImage || '' }));
     // 2. save the questions
     prog.textContent = 'Saving questions…';
+    if (ex.isChapter) {
+      await api('bankImport', { chapterId: ex.id, questions: out });
+      imp = null; toast(`${out.length} question(s) added to the bank`);
+      location.hash = '#/bank/' + encodeURIComponent(ex.id);
+      return;
+    }
     qData = await api('qImport', { examId: ex.id, mode, questions: out });
     imp = null; cat = null;
     toast(`${out.length} question(s) saved`);
@@ -2131,6 +2257,215 @@ async function viewCoupons() {
     toast('Saved'); draw();
   });
   draw();
+}
+
+/* =========================================================
+   QUESTION BANK: Segment › Subject › Chapter › questions
+   ========================================================= */
+Object.assign(ERR, {
+  CHAPTER_NOT_FOUND: 'Choose a chapter.', NOT_YOUR_QUESTION: 'You can only edit questions you wrote.', HAS_CHILDREN: 'Delete what’s inside it first.',
+  HAS_QUESTIONS: 'This chapter has questions; move or delete them first.', PARENT_NOT_FOUND: 'Reload the page and try again.',
+  PENDING_APPROVAL: 'Your account is waiting for an admin to approve it.', BAD_ROLE: 'That role isn’t used on this portal.',
+  WRONG_PORTAL: 'That page belongs to the other portal (exam or coaching).', EMAIL_TAKEN: 'An account with this email already exists.',
+});
+let bank = null, bankSel = { chapterId: '', type: '', q: '', mine: false }, bankUploads = false;
+const DIFF_NAMES = { EASY: 'Easy', MEDIUM: 'Medium', HARD: 'Hard' };
+async function loadBankTree() { bank = await api('bankTree'); bankUploads = bank.uploads; return bank; }
+const chapterPath = id => {
+  const c = bank.chapters.find(x => x.id === id); if (!c) return '';
+  const sb = bank.subjects.find(x => x.id === c.subjectId) || {}, sg = bank.segments.find(x => x.id === sb.segmentId) || {};
+  return `${sg.name || ''} › ${sb.name || ''} › ${c.name}`;
+};
+const chTotal = c => c.counts.MCQ + c.counts.CQ + c.counts.SQ + c.counts.MATH;
+
+async function viewBank(chapterId) {
+  shell('bank', '<p class="muted">Loading…</p>');
+  try { await loadBankTree(); } catch (e) { return pageError(e); }
+  if (chapterId) bankSel.chapterId = chapterId;
+  if (!bank.chapters.some(c => c.id === bankSel.chapterId)) bankSel.chapterId = '';
+  const open = new Set();
+  if (bankSel.chapterId) { const c = bank.chapters.find(x => x.id === bankSel.chapterId); const sb = bank.subjects.find(x => x.id === c.subjectId); open.add(sb.id); open.add(sb.segmentId); }
+  const S = bank.canStructure;
+  $('#main').innerHTML = `
+    <div class="row" style="margin-bottom:.2rem"><h1>Question bank</h1><span class="spacer"></span>${S ? '<button class="btn ghost sm" id="addSeg">+ Segment</button>' : ''}</div>
+    <p class="lede">Every question lives in a chapter. Exams and books will pick questions from here. ${bank.canEditAll ? '' : 'You can see all questions and edit the ones you wrote.'}</p>
+    <div class="bankgrid">
+      <nav class="banktree card" aria-label="Chapters">${bank.segments.map(sg => {
+        const subs = bank.subjects.filter(x => x.segmentId === sg.id);
+        return `<details ${open.has(sg.id) || bank.segments.length === 1 ? 'open' : ''}><summary><b>${esc(sg.name)}</b>${S ? `<button class="link tiny" data-edseg="${esc(sg.id)}">edit</button><button class="link tiny" data-addsub="${esc(sg.id)}">+ subject</button>` : ''}</summary>
+          ${subs.map(sb => { const chs = bank.chapters.filter(c => c.subjectId === sb.id); const tot = chs.reduce((a, c) => a + chTotal(c), 0);
+            return `<details class="sub" ${open.has(sb.id) ? 'open' : ''}><summary>${esc(sb.name)} <span class="cnt">${tot}</span>${S ? `<button class="link tiny" data-edsub="${esc(sb.id)}">edit</button><button class="link tiny" data-addch="${esc(sb.id)}">+ chapters</button>` : ''}</summary>
+              ${chs.map(c => `<a href="#/bank/${encodeURIComponent(c.id)}" class="${c.id === bankSel.chapterId ? 'on' : ''}">${esc(c.name)} <span class="cnt">${chTotal(c)}</span></a>`).join('') || '<span class="muted tiny">No chapters</span>'}
+            </details>`; }).join('') || '<span class="muted tiny">No subjects</span>'}</details>`;
+      }).join('')}</nav>
+      <section id="bankpane">${bankSel.chapterId ? '<p class="muted">Loading questions…</p>' : '<div class="card"><p class="muted" style="margin:0">Choose a chapter on the left.</p></div>'}</section>
+    </div>`;
+  if (S) {
+    $('#addSeg').onclick = () => structDialog('segment', null, '');
+    document.querySelectorAll('[data-edseg]').forEach(b => b.onclick = e => { e.preventDefault(); structDialog('segment', bank.segments.find(x => x.id === b.dataset.edseg), ''); });
+    document.querySelectorAll('[data-addsub]').forEach(b => b.onclick = e => { e.preventDefault(); structDialog('subject', null, b.dataset.addsub); });
+    document.querySelectorAll('[data-edsub]').forEach(b => b.onclick = e => { e.preventDefault(); const sb = bank.subjects.find(x => x.id === b.dataset.edsub); structDialog('subject', sb, sb.segmentId); });
+    document.querySelectorAll('[data-addch]').forEach(b => b.onclick = e => { e.preventDefault(); chaptersDialog(b.dataset.addch); });
+  }
+  if (bankSel.chapterId) loadBankPane();
+}
+
+async function loadBankPane() {
+  const c = bank.chapters.find(x => x.id === bankSel.chapterId);
+  let r;
+  try { r = await api('bankList', { chapterId: c.id, type: bankSel.type, q: bankSel.q, mine: bankSel.mine }); } catch (e) { $('#bankpane').innerHTML = `<p class="alert">${esc(errText(e))}</p>`; return; }
+  const tabs = [['', 'All', chTotal(c)], ['MCQ', 'MCQ', c.counts.MCQ], ['CQ', 'CQ', c.counts.CQ], ['SQ', 'SQ', c.counts.SQ], ['MATH', 'Math', c.counts.MATH]];
+  const nums = typeNumbers(r.questions);
+  $('#bankpane').innerHTML = `<div class="card">
+    <div class="row" style="margin-bottom:.5rem"><div><span class="muted" style="font-size:.85rem">${esc(chapterPath(c.id).split(' › ').slice(0, 2).join(' › '))}</span><h2>${esc(c.name)}</h2></div><span class="spacer"></span>
+      ${bank.canStructure ? '<button class="btn ghost sm" id="edCh">Rename</button>' : ''}
+      <button class="btn ghost sm" id="mkSlides" ${r.questions.length ? '' : 'disabled'}>Make slides</button>
+      <a class="btn ghost sm" href="#/bankimport/${encodeURIComponent(c.id)}">Upload Word file</a><button class="btn sm" id="addBQ">+ Add question</button></div>
+    <nav class="tabs" style="margin-bottom:.6rem">${tabs.map(([k, l, n]) => `<a href="#" data-bt="${k}" ${bankSel.type === k ? 'aria-current="page"' : ''}>${l} ${n}</a>`).join('')}</nav>
+    <form class="row" id="bf" style="margin-bottom:.4rem"><input class="t" name="q" value="${esc(bankSel.q)}" placeholder="Search text, source or ID" style="max-width:18rem">
+      <label class="check"><input type="checkbox" name="mine" ${bankSel.mine ? 'checked' : ''}> Only mine (${c.counts.mine})</label><button class="btn ghost sm">Search</button></form>
+    <div id="bqlist">${r.questions.map((q, i) => `<div class="qcard">
+      <span class="qnum"><input type="checkbox" class="qsel" data-sel="${esc(q.id)}" aria-label="Select for slides"> ${bn(nums[i])}.<span class="qtype t-${q.type}">${q.type === 'MATH' ? 'Math' : q.type}</span></span>
+      <div class="qbody">${questionBody(q)}
+        <div class="qmeta"><code>${esc(q.id)}</code> · ${esc(q.author)}${q.difficulty ? ' · ' + DIFF_NAMES[q.difficulty] : ''}${q.source ? ' · ' + esc(q.source) : ''}</div></div>
+      <div class="qtools">${q.canEdit ? `<button class="btn ghost sm" data-bed="${esc(q.id)}">Edit</button><button class="btn danger sm" data-bdel="${esc(q.id)}">Delete</button>` : ''}</div>
+    </div>`).join('') || '<p class="muted">No questions here yet.</p>'}</div></div>`;
+  typeset($('#bqlist'));
+  document.querySelectorAll('[data-bt]').forEach(a => a.onclick = e => { e.preventDefault(); bankSel.type = a.dataset.bt; loadBankPane(); });
+  $('#bf').onsubmit = e => { e.preventDefault(); bankSel.q = e.target.q.value.trim(); bankSel.mine = e.target.mine.checked; loadBankPane(); };
+  if ($('#edCh')) $('#edCh').onclick = () => structDialog('chapter', c, c.subjectId);
+  const edit = q => questionDialog(null, { bank: true, q: q || { type: bankSel.type || 'MCQ' }, title: q ? 'Edit question ' + q.id : 'Add a question to ' + c.name, examId: c.id,
+    onSave: async data => { await api('bankSave', { chapterId: c.id, qid: q ? q.id : '', q: data }); toast(q ? 'Saved' : 'Question added'); await loadBankTree(); viewBank(c.id); } });
+  $('#addBQ').onclick = () => edit(null);
+  $('#mkSlides').onclick = () => {
+    const picked = [...document.querySelectorAll('.qsel:checked')].map(x => x.dataset.sel);
+    const list = picked.length ? r.questions.filter(q => picked.includes(q.id)) : r.questions;
+    makeSlides(list, c.name + (bankSel.type ? ' ' + bankSel.type : '') + (picked.length ? ' (selected)' : ''));
+  };
+  document.querySelectorAll('[data-bed]').forEach(b => b.onclick = () => edit(r.questions.find(x => x.id === b.dataset.bed)));
+  document.querySelectorAll('[data-bdel]').forEach(b => b.onclick = async () => {
+    if (!confirm('Delete this question from the bank?')) return;
+    try { await api('bankDelete', { qid: b.dataset.bdel }); toast('Deleted'); await loadBankTree(); viewBank(c.id); } catch (x) { toast(errText(x)); }
+  });
+}
+
+function structDialog(kind, item, parentId) {
+  const label = { segment: 'segment', subject: 'subject', chapter: 'chapter' }[kind];
+  dialog(`<h2>${item ? 'Rename ' + label : 'Add a ' + label}</h2><div class="stack">
+    <label class="f"><span>Name</span><input class="t" name="name" value="${esc(item ? item.name : '')}" required placeholder="${{ segment: 'e.g. HSC', subject: 'e.g. পদার্থবিজ্ঞান ১ম পত্র', chapter: 'e.g. অধ্যায় ১: ভৌতজগৎ ও পরিমাপ' }[kind]}"></label>
+    <label class="f" style="max-width:8rem"><span>Order</span><input class="t" name="order" type="number" value="${item ? item.order : ''}"></label>
+  </div>${dlgButtons(item ? 'Save' : 'Add', item ? 'Delete' : '')}`, async (v, f) => {
+    if (v === 'delete') { if (!confirm(`Delete "${item.name}"?`)) return false; bank = await api('structDelete', { kind, id: item.id }); }
+    else bank = await api('structSave', { kind, id: item ? item.id : '', parentId, name: f.name.value, order: f.order.value });
+    toast('Saved'); viewBank(bankSel.chapterId);
+  });
+}
+function chaptersDialog(subjectId) {
+  dialog(`<h2>Add chapters</h2><div class="stack">
+    <label class="f"><span>Chapter names, one per line</span><textarea class="t" name="names" rows="6" placeholder="অধ্যায় ১: ভৌতজগৎ ও পরিমাপ&#10;অধ্যায় ২: ভেক্টর"></textarea></label>
+    <label class="f" style="max-width:14rem"><span>…or just a number of chapters</span><input class="t" name="count" type="number" min="1" max="40" placeholder="e.g. 10"><small>Creates অধ্যায় 1, অধ্যায় 2 … (rename later).</small></label>
+  </div>${dlgButtons('Add chapters')}`, async (v, f) => {
+    bank = await api('chaptersAdd', { subjectId, names: f.names.value, count: f.count.value });
+    toast('Chapters added'); viewBank(bankSel.chapterId);
+  });
+}
+
+/* ---------- Word upload into a chapter ---------- */
+async function viewBankImport(chapterId) {
+  shell('bank', '<p class="muted">Loading…</p>');
+  try { await loadBankTree(); } catch (e) { return pageError(e); }
+  const c = bank.chapters.find(x => x.id === chapterId);
+  if (!c) { location.hash = '#/bank'; return; }
+  if (!imp || imp.examId !== 'CH:' + chapterId) imp = { examId: 'CH:' + chapterId, questions: null, images: [], fileName: '' };
+  const ex = { id: c.id, name: c.name, questions: 0, attempts: 0, isChapter: true };
+  $('#main').innerHTML = `
+    <p style="margin:0 0 .3rem"><a class="link" href="#/bank/${encodeURIComponent(c.id)}">← ${esc(c.name)}</a></p>
+    <h1>Upload a Word file</h1>
+    <p class="lede">Questions go into <b>${esc(chapterPath(c.id))}</b>. Use section headings (বহুনির্বাচনী / সৃজনশীল / সংক্ষিপ্ত / গাণিতিক সমস্যা) for different types. <button class="link" data-template>Download the Word template</button></p>
+    <div class="card row"><input type="file" id="docx" accept=".docx" hidden><button class="btn" id="choose">${imp.questions ? 'Choose another Word file' : 'Choose Word file (.docx)'}</button><span class="muted">${esc(imp.fileName)}</span></div>
+    <div id="iarea"></div>`;
+  $('#choose').onclick = () => $('#docx').click();
+  $('#docx').onchange = async e => {
+    const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+    $('#iarea').innerHTML = '<p class="muted" style="margin-top:1rem">Reading the Word file…</p>';
+    try {
+      const r = await DocxImport.parse(await file.arrayBuffer());
+      imp.images = r.images.map((im, i) => { const url = im.blob && im.supported ? URL.createObjectURL(im.blob) : ''; if (url) localImgs['@' + i] = url; return Object.assign(im, { url }); });
+      imp.questions = r; imp.fileName = file.name; viewBankImport(chapterId);
+    } catch (err) { $('#iarea').innerHTML = `<p class="alert" style="margin-top:1rem">${esc(errText(err.code ? err : { code: err.message }))}</p>`; }
+  };
+  if (imp.questions) renderImport(ex);
+}
+
+/* ---------- copy an exam's questions into the bank ---------- */
+async function copyExamToBank(examId) {
+  try { await loadBankTree(); } catch (e) { toast(errText(e)); return; }
+  const opts = bank.chapters.map(c => `<option value="${esc(c.id)}">${esc(chapterPath(c.id))}</option>`).join('');
+  dialog(`<h2>Copy ${esc(examId)} into the question bank</h2>
+    <p class="muted">All its questions are copied into the chapter you choose. The exam itself doesn't change.</p>
+    <label class="f"><span>Chapter</span><select class="t" name="ch" required><option value="">Choose…</option>${opts}</select></label>
+    ${dlgButtons('Copy questions')}`, async (v, f) => {
+    const r = await api('bankFromExam', { examId, chapterId: f.ch.value });
+    toast(r.added + ' question(s) copied'); location.hash = '#/bank/' + encodeURIComponent(f.ch.value);
+  });
+}
+
+/* ---------- teacher sign-up (from the sign-in page) ---------- */
+function showSignup(error, keep = {}) {
+  centerCard(`
+    <div><h1>Teacher account</h1><p class="lede" style="margin:0">For teachers who add questions to the ${esc(CFG.SITE_NAME)} question bank. An admin approves new accounts.</p></div>
+    ${error ? `<p class="alert" role="alert">${esc(error)}</p>` : ''}
+    <form id="f" class="stack">
+      <label class="f"><span>Your name</span><input class="t" name="name" value="${esc(keep.name || '')}" required autofocus></label>
+      <label class="f"><span>Email</span><input class="t" name="email" type="email" value="${esc(keep.email || '')}" required></label>
+      <div class="grid2"><label class="f"><span>Mobile</span><input class="t" name="phone" type="tel" value="${esc(keep.phone || '')}"></label>
+        <label class="f"><span>School / college</span><input class="t" name="inst" value="${esc(keep.institution || '')}"></label></div>
+      <label class="f"><span>Password</span><input class="t" name="password" type="password" minlength="8" autocomplete="new-password" required><small>At least 8 characters.</small></label>
+      <button class="btn" style="width:100%;justify-content:center">Ask for an account</button>
+    </form>
+    <button class="link" id="back">← Back to sign in</button>`);
+  $('#back').onclick = () => showSignIn();
+  $('#f').onsubmit = async e => {
+    e.preventDefault(); const f = e.target;
+    const d = { name: f.name.value.trim(), email: f.email.value.trim(), phone: f.phone.value.trim(), institution: f.inst.value.trim() };
+    try {
+      await api('writerSignup', Object.assign({ password: f.password.value }, d));
+      centerCard(`<h1>Request sent</h1><p>Thank you, ${esc(d.name)}. An admin will approve your account; then sign in with <b>${esc(d.email)}</b>.</p><button class="btn" id="back">Back to sign in</button>`);
+      $('#back').onclick = () => showSignIn();
+    } catch (x) { showSignup(errText(x), d); }
+  };
+}
+
+
+/* =========================================================
+   SLIDES: hand questions to the slide maker (slides/)
+   ========================================================= */
+// Turns questions into the slide maker's rows (its Excel template's columns).
+function toSlideRows(list, label) {
+  const absImg = ref => { const src = imgSrc(ref); return src ? new URL(src, location.href).href : ''; };
+  const firstInline = t => { const m = String(t || '').match(/\[img:\s*([^\]\s]+)\s*\]/i); return m ? m[1] : ''; };
+  const clean = t => String(t || '').replace(/\n?\[img:[^\]]*\]\n?/gi, '\n').replace(/\n{2,}/g, '\n').trim();
+  const n = {};
+  return list.map(q => {
+    const t = q.type || 'MCQ';
+    n[t] = (n[t] || 0) + 1;
+    const img = q.image || firstInline(q.question);
+    let question = clean(q.question), solution = clean(q.solution);
+    if (t === 'CQ') {
+      question += '\n' + (q.parts || []).map((p, j) => `${CQ_LABELS[j]}. ${clean(p.text)} (${bn(p.marks)})`).join('\n');
+      const ans = (q.parts || []).map((p, j) => p.solution ? `${CQ_LABELS[j]}. ${clean(p.solution)}` : '').filter(Boolean).join('\n');
+      solution = [ans, solution].filter(Boolean).join('\n');
+    } else if (t === 'SQ' || t === 'MATH') question += q.marks ? ` [${bn(q.marks)}]` : '';
+    const row = { ExamID: label, QNo: String(n[t]), Question: question, ImageURL: img ? absImg(img) : '', Solution: solution, Type: t === 'MCQ' ? 'MCQ' : 'Problem' };
+    if (t === 'MCQ') Object.assign(row, { OptionA: clean(q.options[0]), OptionB: clean(q.options[1]), OptionC: clean(q.options[2]), OptionD: clean(q.options[3]), Answer: q.answer || '' });
+    return row;
+  });
+}
+function makeSlides(list, label) {
+  if (!list.length) { toast('No questions to make slides from.'); return; }
+  try { localStorage.setItem('gp_slides_payload', JSON.stringify({ name: label, rows: toSlideRows(list, label), at: Date.now() })); }
+  catch (e) { toast('Your browser blocked the hand-over. Allow site storage and try again.'); return; }
+  window.open('slides/', '_blank');
 }
 
 boot();
