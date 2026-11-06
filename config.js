@@ -15,7 +15,7 @@ window.PORTAL_CONFIG = {
   LOGO: 'logo.png',
   // EXAM site only: the coaching website's address, e.g. 'https://coaching.goalphysics.com/'.
   // Old student links and ID-card QR codes that point here are forwarded to it. Leave '' on the coaching site.
-  COACHING_URL: '',
+  COACHING_URL: 'https://rahatma.github.io/goalcoaching/',
   // Folder on this website where question pictures live.
   IMAGE_FOLDER: 'images/',
 };
